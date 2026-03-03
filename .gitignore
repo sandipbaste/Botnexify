@@ -1,0 +1,119 @@
+# Environment files
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+
+
+node_modules/
+# -----------------------------
+# Python
+# -----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# -----------------------------
+# Virtual Environments
+# -----------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# -----------------------------
+# Environment Variables
+# -----------------------------
+.env
+.env.*
+*.env
+
+# -----------------------------
+# Logs
+# -----------------------------
+*.log
+logs/
+*.sqlite3
+
+# -----------------------------
+# OS Files
+# -----------------------------
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+# Editor / IDE
+# -----------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# -----------------------------
+# Jupyter
+# -----------------------------
+.ipynb_checkpoints/
+
+# -----------------------------
+# Build / Distribution
+# -----------------------------
+build/
+dist/
+*.egg-info/
+
+# -----------------------------
+# LangChain / AI / Vector Stores
+# -----------------------------
+faiss_index/
+*.faiss
+*.pkl
+
+# -----------------------------
+# Model / Cache
+# -----------------------------
+.cache/
+.cache/*
+huggingface/
+hf_cache/
+
+# -----------------------------
+# Generated Data / PDFs / Uploads
+# -----------------------------
+data/
+uploads/
+generated/
+*.pdf
+
+# -----------------------------
+# FastAPI / Uvicorn
+# -----------------------------
+*.pid
+*.sock
+
+# -----------------------------
+# Testing / Coverage
+# -----------------------------
+.pytest_cache/
+.coverage
+htmlcov/
+
+# -----------------------------
+# Node (if frontend exists)
+# -----------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# -----------------------------
+# Secrets (extra safety)
+# -----------------------------
+secrets/
+credentials.json

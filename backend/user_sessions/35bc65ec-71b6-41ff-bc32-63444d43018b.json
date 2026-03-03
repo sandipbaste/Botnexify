@@ -1,0 +1,60 @@
+{
+  "user_info": {
+    "session_id": "35bc65ec-71b6-41ff-bc32-63444d43018b",
+    "full_name": "Sandip Baste",
+    "email": "sandipbaste999@gmail.com",
+    "mobile": "+919767952471",
+    "website_id": "b1230999",
+    "registered_at": "2026-03-03T00:12:05.498921",
+    "conversation_id": "conv_1772476925"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "message": "your job openings",
+      "timestamp": "2026-03-03T00:12:36.613175"
+    },
+    {
+      "role": "assistant",
+      "message": "We have 3 open positions:\n1. Associate AI Developer / GenAI Developer (0-2 Years Experience)\n2. Associate Backend Engineer (1+ Years Experience)\n3. Full Stack Engineer (1+ Years Experience)",
+      "timestamp": "2026-03-03T00:12:49.635333"
+    },
+    {
+      "role": "user",
+      "message": "explain first",
+      "timestamp": "2026-03-03T00:13:03.145007"
+    },
+    {
+      "role": "user",
+      "message": "your services",
+      "timestamp": "2026-03-03T17:07:56.720511"
+    },
+    {
+      "role": "assistant",
+      "message": "An Associate AI Developer / GenAI Developer works with artificial intelligence and generative AI. Our services include IoT, AI, Cloud, and Full Stack development.",
+      "timestamp": "2026-03-03T17:08:17.413542"
+    },
+    {
+      "role": "user",
+      "message": "your projects",
+      "timestamp": "2026-03-03T17:09:02.146001"
+    },
+    {
+      "role": "assistant",
+      "message": "We showcase innovative work with impactful digital experiences. Our projects include:\nAndroid Apps (e.g., Ice Cream App, Personal Memory Assistance, Bus Fare NFC)\niOS Apps (e.g., Ice Cream App, Personal Memory Assistance, Food App)\nWeb Applications (e.g., Furniture Website)\nWebsites (e.g., CA Website, E-Commerce Web)\nNexployer (a product)",
+      "timestamp": "2026-03-03T17:09:16.726377"
+    },
+    {
+      "role": "user",
+      "message": "I want create website",
+      "timestamp": "2026-03-03T17:11:05.787752"
+    },
+    {
+      "role": "assistant",
+      "message": "We can help you create a website. For detailed discussion, please fill out the enquiry form and our team will contact you shortly.",
+      "timestamp": "2026-03-03T17:11:36.691057"
+    }
+  ],
+  "created_at": "2026-03-03T00:12:05.498921",
+  "last_active": "2026-03-03T17:11:05.787752"
+}
