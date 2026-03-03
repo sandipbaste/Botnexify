@@ -53,8 +53,38 @@
       "role": "assistant",
       "message": "We can help you create a website. For detailed discussion, please fill out the enquiry form and our team will contact you shortly.",
       "timestamp": "2026-03-03T17:11:36.691057"
+    },
+    {
+      "role": "user",
+      "message": "your web development stack",
+      "timestamp": "2026-03-03T21:53:58.498473"
+    },
+    {
+      "role": "assistant",
+      "message": "Our web development stack includes React.js, JavaScript, and Python for robust backend systems. We provide full-stack solutions.",
+      "timestamp": "2026-03-03T21:55:41.921136"
+    },
+    {
+      "role": "user",
+      "message": "your projects",
+      "timestamp": "2026-03-03T22:34:03.644504"
+    },
+    {
+      "role": "assistant",
+      "message": "We showcase innovative work with impactful digital experiences. Our projects include:\nAndroid Apps (e.g., Ice Cream App, Personal Memory Assistance, Bus Fare NFC)\niOS Apps (e.g., Ice Cream App, Personal Memory Assistance, Food App)\nWeb Applications (e.g., Furniture Website)\nWebsites (e.g., CA Website, E-Commerce Web)\nNexployer (a product)",
+      "timestamp": "2026-03-03T22:34:30.864789"
+    },
+    {
+      "role": "user",
+      "message": "I want create website",
+      "timestamp": "2026-03-03T22:48:48.684114"
+    },
+    {
+      "role": "assistant",
+      "message": "We can help you create a website. For detailed discussion, please fill out the enquiry form and our team will contact you shortly.",
+      "timestamp": "2026-03-03T22:49:16.796941"
     }
   ],
   "created_at": "2026-03-03T00:12:05.498921",
-  "last_active": "2026-03-03T17:11:05.787752"
+  "last_active": "2026-03-03T22:48:48.684114"
 }
