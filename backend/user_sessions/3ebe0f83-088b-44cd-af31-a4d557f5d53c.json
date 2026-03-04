@@ -1,0 +1,45 @@
+{
+  "user_info": {
+    "session_id": "3ebe0f83-088b-44cd-af31-a4d557f5d53c",
+    "full_name": "company",
+    "email": "companypractice999@gmail.com",
+    "mobile": "7383737373",
+    "website_id": "cdaed3e5",
+    "registered_at": "2026-03-04T12:08:45.152079",
+    "conversation_id": "conv_1772606325"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "message": "I want build website",
+      "timestamp": "2026-03-04T12:09:07.766734"
+    },
+    {
+      "role": "assistant",
+      "message": "What kind of website are you looking to build?",
+      "timestamp": "2026-03-04T12:09:20.581173"
+    },
+    {
+      "role": "user",
+      "message": "React base",
+      "timestamp": "2026-03-04T12:10:11.974448"
+    },
+    {
+      "role": "assistant",
+      "message": "We can help build dynamic, responsive React.js web applications. What features are you looking for?",
+      "timestamp": "2026-03-04T12:10:26.911723"
+    },
+    {
+      "role": "user",
+      "message": "project management type",
+      "timestamp": "2026-03-04T12:10:46.333966"
+    },
+    {
+      "role": "assistant",
+      "message": "Project Management is a structured approach to planning, executing, and delivering projects effectively. It involves defining objectives, allocating resources, managing risks, and ensuring quality within time and budget. For detailed discussion, please fill out the enquiry form and our team will contact you shortly.",
+      "timestamp": "2026-03-04T12:11:00.687099"
+    }
+  ],
+  "created_at": "2026-03-04T12:08:45.152079",
+  "last_active": "2026-03-04T12:10:46.333966"
+}

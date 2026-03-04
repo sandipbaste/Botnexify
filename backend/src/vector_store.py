@@ -10,7 +10,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue, PayloadSchemaType
 )
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
 load_dotenv()
 
@@ -34,7 +34,7 @@ class VectorStore:
         # Initialize HuggingFace embeddings
         print("🔄 Initializing HuggingFace embeddings model (SINGLETON)...")
         try:
-            self.embeddings = HuggingFaceEmbeddings(
+            self.embeddings = HuggingFaceEndpointEmbeddings(
                 model_name="sentence-transformers/all-MiniLM-L6-v2",
                 model_kwargs={'device': 'cpu'},
                 encode_kwargs={'normalize_embeddings': True}

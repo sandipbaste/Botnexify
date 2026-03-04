@@ -83,8 +83,18 @@
       "role": "assistant",
       "message": "We can help you create a website. For detailed discussion, please fill out the enquiry form and our team will contact you shortly.",
       "timestamp": "2026-03-03T22:49:16.796941"
+    },
+    {
+      "role": "user",
+      "message": "your services",
+      "timestamp": "2026-03-04T00:05:41.000822"
+    },
+    {
+      "role": "assistant",
+      "message": "Our services include IoT, AI, Cloud, and Full Stack development. We build digital solutions for your real-time requirements.",
+      "timestamp": "2026-03-04T00:06:02.198768"
     }
   ],
   "created_at": "2026-03-03T00:12:05.498921",
-  "last_active": "2026-03-03T22:48:48.684114"
+  "last_active": "2026-03-04T00:05:41.000822"
 }

@@ -5033,7 +5033,7 @@ async def test_chatbot_page(website_id: str):
     """Test page with embedded chatbot - Qdrant Cloud version"""
     try:
         # Get base URL from environment or use default
-        base_url = os.getenv("BACKEND_URL").rstrip('/')
+        base_url = os.getenv("BASE_URL").rstrip('/')
         
         # Check if website exists in database
         website = db_manager.get_website(website_id)
@@ -5686,7 +5686,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host=os.getenv("BACKEND_HOST", "0.0.0.0"),
-        port=int(os.getenv("BACKEND_PORT", 10000)),
+        port=int(os.getenv("BACKEND_PORT", 8000)),
         reload=True,
         log_level="info"
     )
