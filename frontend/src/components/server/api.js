@@ -1,5 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-// const API_BASE_URL = 'http://192.168.1.5:8000';
+const API_URL = import.meta.env.VITE_API_URL;
+// const API_URL = 'http://192.168.1.5:8000';
 
 
 const getAuthHeaders = () => {
@@ -17,7 +17,7 @@ export const api = {
   // Test connection
   async testConnection() {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
+      const response = await fetch(`${API_URL}/health`);
       const data = await response.json();
       return { connected: true, message: data.message || 'Connected' };
     } catch (error) {
@@ -27,7 +27,7 @@ export const api = {
 
   // Register user
   async registerUser(websiteId, userInfo) {
-    const response = await fetch(`${API_BASE_URL}/api/register`, {
+    const response = await fetch(`${API_URL}/api/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -45,7 +45,7 @@ export const api = {
 
   // Get user session
   async getUserSession(websiteId, sessionId) {
-    const response = await fetch(`${API_BASE_URL}/api/user/${websiteId}/${sessionId}`);
+    const response = await fetch(`${API_URL}/api/user/${websiteId}/${sessionId}`);
     
     if (!response.ok) {
       throw new Error('Session not found');
@@ -56,7 +56,7 @@ export const api = {
 
   // Chat with website
   async chatWithWebsite(websiteId, question, conversationId = null, userInfo = null) {
-    const response = await fetch(`${API_BASE_URL}/api/chat`, {
+    const response = await fetch(`${API_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -77,7 +77,7 @@ export const api = {
 
   // In api.js, add these methods
 async forgotPassword(email) {
-  const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+  const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email })
@@ -91,7 +91,7 @@ async forgotPassword(email) {
 },
 
 async verifyOTP(resetToken, otp) {
-  const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
+  const response = await fetch(`${API_URL}/api/auth/verify-otp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reset_token: resetToken, otp })
@@ -105,7 +105,7 @@ async verifyOTP(resetToken, otp) {
 },
 
 async resetPassword(resetToken, newPassword, confirmPassword) {
-  const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+  const response = await fetch(`${API_URL}/api/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -157,7 +157,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
         reject(new Error('Network error during upload'));
       });
       
-      xhr.open('POST', `${API_BASE_URL}/api/upload/${websiteId}`);
+      xhr.open('POST', `${API_URL}/api/upload/${websiteId}`);
       
       // Add authorization header
       if (token) {
@@ -170,7 +170,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // Get website uploads
   async getWebsiteUploads(websiteId) {
-    const response = await fetch(`${API_BASE_URL}/api/website/${websiteId}`);
+    const response = await fetch(`${API_URL}/api/website/${websiteId}`);
     
     if (!response.ok) {
       throw new Error('Failed to get website uploads');
@@ -204,7 +204,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // Delete uploaded file
   async deleteUploadedFile(websiteId, filename) {
-    const response = await fetch(`${API_BASE_URL}/api/delete-file/${websiteId}`, {
+    const response = await fetch(`${API_URL}/api/delete-file/${websiteId}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename: filename })
@@ -219,7 +219,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // Reindex website
   async reindexWebsite(websiteId) {
-    const response = await fetch(`${API_BASE_URL}/api/reindex/${websiteId}`, {
+    const response = await fetch(`${API_URL}/api/reindex/${websiteId}`, {
       method: 'POST'
     });
     
@@ -232,7 +232,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // List websites
   async listWebsites() {
-    const response = await fetch(`${API_BASE_URL}/api/websites`);
+    const response = await fetch(`${API_URL}/api/websites`);
     
     if (!response.ok) {
       throw new Error('Failed to list websites');
@@ -255,7 +255,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // Train website with contact email
   async trainWebsite(websiteUrl, websiteName = null, contactEmail = null, generateScript = true) {
-    const response = await fetch(`${API_BASE_URL}/api/train`, {
+    const response = await fetch(`${API_URL}/api/train`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
@@ -276,7 +276,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // Get training status
   async getTrainingStatus(websiteId) {
-    const response = await fetch(`${API_BASE_URL}/api/training-status/${websiteId}`);
+    const response = await fetch(`${API_URL}/api/training-status/${websiteId}`);
     
     if (!response.ok) {
       throw new Error('Failed to get training status');
@@ -287,7 +287,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // Generate script
   async generateScript(websiteId) {
-    const response = await fetch(`${API_BASE_URL}/api/generate-script/${websiteId}`);
+    const response = await fetch(`${API_URL}/api/generate-script/${websiteId}`);
     
     if (!response.ok) {
       throw new Error('Failed to generate script');
@@ -298,7 +298,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // Get website info
   async getWebsiteInfo(websiteId) {
-    const response = await fetch(`${API_BASE_URL}/api/website/${websiteId}`);
+    const response = await fetch(`${API_URL}/api/website/${websiteId}`);
     
     if (!response.ok) {
       throw new Error('Failed to get website info');
@@ -309,7 +309,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   // Get user websites (authenticated)
   async getUserWebsites() {
-    const response = await fetch(`${API_BASE_URL}/api/user/websites`, {
+    const response = await fetch(`${API_URL}/api/user/websites`, {
       headers: getAuthHeaders()
     });
     
@@ -323,7 +323,7 @@ async resetPassword(resetToken, newPassword, confirmPassword) {
 
   
 async getUserStats() {
-    const response = await fetch(`${API_BASE_URL}/api/user/stats`, {
+    const response = await fetch(`${API_URL}/api/user/stats`, {
       headers: getAuthHeaders()
     });
     
@@ -337,7 +337,7 @@ async getUserStats() {
 
   // Submit contact form
   async submitContactForm(websiteId, formData) {
-    const response = await fetch(`${API_BASE_URL}/api/contact`, {
+    const response = await fetch(`${API_URL}/api/contact`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -355,7 +355,7 @@ async getUserStats() {
 
   // End chat session and send report
   async endChatSession(sessionId) {
-    const response = await fetch(`${API_BASE_URL}/api/chat/end-session`, {
+    const response = await fetch(`${API_URL}/api/chat/end-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
