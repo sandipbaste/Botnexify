@@ -376,26 +376,7 @@ const Signup = ({ onSignup, onSwitchToLogin, onClose }) => {
                     <p className="text-sm text-red-600">{errors.general}</p>
                   </div>
                 )}
-                
-                {/* Terms Checkbox */}
-                {/* <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="terms"
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    required
-                  />
-                  <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
-                    I agree to the{' '}
-                    <a href="#" className="text-blue-600 hover:text-blue-800">
-                      Terms of Service
-                    </a>{' '}
-                    and{' '}
-                    <a href="#" className="text-blue-600 hover:text-blue-800">
-                      Privacy Policy
-                    </a>
-                  </label>
-                </div> */}
+              
                 
                 {/* Submit Button */}
                 <button
