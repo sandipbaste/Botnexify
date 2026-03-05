@@ -13,6 +13,7 @@ import { Doughnut } from 'react-chartjs-2';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Link } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
 
@@ -1417,14 +1418,14 @@ const Reports = () => {
                                       Website URL
                                     </label>
                                     {website.website_url ? (
-                                      <a 
-                                        href={website.website_url} 
+                                      <Link 
+                                        to={website.website_url} 
                                         target="_blank" 
                                         rel="noopener noreferrer"
                                         className="text-sm text-blue-600 hover:text-blue-800 hover:underline mt-1 block break-all"
                                       >
                                         {website.website_url}
-                                      </a>
+                                      </Link>
                                     ) : (
                                       <p className="text-sm text-gray-500 mt-1">N/A</p>
                                     )}
