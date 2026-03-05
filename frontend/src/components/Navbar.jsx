@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { Link, useLocation } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
 
 const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
