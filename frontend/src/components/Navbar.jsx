@@ -239,7 +239,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
           </div>
         </motion.div>
       )}
-    </LinknimatePresence>
+    </AnimatePresence>
   );
 
   return (
