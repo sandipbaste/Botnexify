@@ -344,7 +344,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
       </div>
 
       {/* Mobile Menu */}
-      <LinknimatePresence>
+      <AnimatePresence>
         {isMenuOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -406,7 +406,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
             </div>
           </motion.div>
         )}
-      </LinknimatePresence>
+      </AnimatePresence>
 
       {/* Mobile User Menu Dropdown */}
       {user && showUserMenu && window.innerWidth < 768 && (
