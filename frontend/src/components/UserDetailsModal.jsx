@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
+import { Link } from 'react-router-dom';
 
 const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
   const modalRef = useRef(null);
@@ -654,14 +655,14 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
                                   Website URL
                                 </label>
                                 {website.website_url ? (
-                                  <a 
-                                    href={website.website_url} 
+                                  <Link 
+                                    to={website.website_url} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
                                     className="text-sm text-blue-600 hover:text-blue-800 hover:underline mt-1 block break-all"
                                   >
                                     {website.website_url}
-                                  </a>
+                                  </Link>
                                 ) : (
                                   <p className="text-sm text-gray-500 mt-1">N/A</p>
                                 )}
