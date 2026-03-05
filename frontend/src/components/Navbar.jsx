@@ -144,7 +144,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
   };
 
   const NotificationsDropdown = () => (
-    <AnimatePresence>
+    <LinknimatePresence>
       {showNotifications && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -177,11 +177,11 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </LinknimatePresence>
   );
 
   const UserMenuDropdown = () => (
-    <AnimatePresence>
+    <LinknimatePresence>
       {showUserMenu && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -203,29 +203,29 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
           </div>
           
           <div className="py-1">
-            <a
-              href="/dashboard"
+            <Link
+              to="/dashboard"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <FaHome className="mr-3 text-gray-400" />
               Dashboard
-            </a>
+            </Link>
             
-            <a
-              href="/profile"
+            <Link
+              to="/profile"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <FaUser className="mr-3 text-gray-400" />
               My Profile
-            </a>
+            </Link>
             
-            <a
-              href="/settings"
+            <Link
+              to="/settings"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <FaCog className="mr-3 text-gray-400" />
               Settings
-            </a>
+            </Link>
           </div>
           
           <div className="border-t border-gray-100 py-1">
@@ -239,7 +239,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </LinknimatePresence>
   );
 
   return (
@@ -344,7 +344,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
       </div>
 
       {/* Mobile Menu */}
-      <AnimatePresence>
+      <LinknimatePresence>
         {isMenuOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -355,25 +355,25 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
             <div className="px-2 pt-2 pb-3 space-y-1">
               {user ? (
                 <>
-                  <a
-                    href="/dashboard"
+                  <Link
+                    to="/dashboard"
                     className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   >
                     Dashboard
-                  </a>
-                  <a
-                    href="/profile"
+                  </Link>
+                  <Link
+                    to="/profile"
                     className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   >
                     Profile
-                  </a>
+                  </Link>
                   
-                  <a
-                    href="/settings"
+                  <Link
+                    to="/settings"
                     className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   >
                     Settings
-                  </a>
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="block w-full text-left px-3 py-2 rounded-md text-red-600 hover:text-red-800 hover:bg-red-50"
@@ -406,7 +406,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </LinknimatePresence>
 
       {/* Mobile User Menu Dropdown */}
       {user && showUserMenu && window.innerWidth < 768 && (
