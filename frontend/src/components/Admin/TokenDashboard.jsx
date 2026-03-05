@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { Dialog, Transition } from '@headlessui/react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { Link } from 'react-router-dom';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -949,10 +950,10 @@ const TokenDashboard = () => {
                                     <p className="font-medium text-gray-900">{website.website_name}</p>
                                     <p className="text-xs text-gray-500">{website.website_id}</p>
                                     {website.website_url && (
-                                      <a href={website.website_url} target="_blank" rel="noopener noreferrer" 
+                                      <Link to={website.website_url} target="_blank" rel="noopener noreferrer" 
                                         className="text-xs text-blue-600 hover:underline">
                                         {website.website_url}
-                                      </a>
+                                      </Link>
                                     )}
                                   </div>
                                 </td>
