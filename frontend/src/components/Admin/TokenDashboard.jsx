@@ -22,7 +22,7 @@ import {
   Filler
 } from 'chart.js';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
 
 ChartJS.register(
   CategoryScale,
