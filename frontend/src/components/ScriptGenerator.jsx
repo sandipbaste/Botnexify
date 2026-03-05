@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FaCopy, FaCheck, FaCode, FaEye, FaDownload, FaRobot, FaSpinner, FaLock, FaExclamationTriangle, FaSync } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
 
 const ScriptGenerator = ({ 
   websites, 
