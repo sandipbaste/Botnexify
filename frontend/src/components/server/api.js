@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
 // const API_URL = 'http://192.168.1.5:8000';
 
 
