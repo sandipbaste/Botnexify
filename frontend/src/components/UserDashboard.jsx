@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import ChatWidget from './ChatWidget';
 import FileManager from './FileManager';
 import botimage from '../assets/bot1.png';
+import { Link } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
 
@@ -492,15 +493,15 @@ const UserDashboard = ({ user }) => {
             </div>
             <div className="flex items-center space-x-2">
               {file.saved_filename && (
-                <a
-                  href={`${API_URL}/data/${websiteId}/uploads/${file.saved_filename}`}
+                <Link
+                  to={`${API_URL}/data/${websiteId}/uploads/${file.saved_filename}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors"
                   title="Download"
                 >
                   <FaDownload />
-                </a>
+                </Link>
               )}
               <button
                 onClick={() => handleDeleteFile(websiteId, file.saved_filename || file.filename)}
