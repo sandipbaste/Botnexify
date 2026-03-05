@@ -28,7 +28,7 @@ import UserDetailsModal from './UserDetailsModal';
 import Reports from './Reports';
 import TokenDashboard from './Admin/TokenDashboard';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
 
 ChartJS.register(
   CategoryScale,
