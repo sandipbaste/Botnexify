@@ -144,7 +144,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
   };
 
   const NotificationsDropdown = () => (
-    <LinknimatePresence>
+    <AnimatePresence>
       {showNotifications && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -177,11 +177,11 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
           </div>
         </motion.div>
       )}
-    </LinknimatePresence>
+    </AnimatePresence>
   );
 
   const UserMenuDropdown = () => (
-    <LinknimatePresence>
+    <AnimatePresence>
       {showUserMenu && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
