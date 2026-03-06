@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
+const API_URL = import.meta.env.VITE_API_URL || 'https://Botnexify.onrender.com';
 
 const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard }) => {
   const [plans, setPlans] = useState([]);
@@ -200,7 +200,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
             key: data.payment_data.razorpay_key,
             amount: data.payment_data.amount,
             currency: data.payment_data.currency || 'INR',
-            name: "Botrion",
+            name: "Botnexify",
             description: `Subscribe to ${plan.plan_name} Plan`,
             order_id: data.payment_data.razorpay_order_id,
             handler: async function (response) {
