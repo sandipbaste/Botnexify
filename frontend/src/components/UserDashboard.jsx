@@ -4,9 +4,10 @@ import {
   FaHistory, FaUsers, FaComments, FaDatabase, FaSync,
   FaExternalLinkAlt, FaTrash, FaEdit, FaEye, FaFolderOpen, FaCrown, FaFile,
   FaFilePdf, FaFileWord, FaFileExcel, FaFileImage, FaFileArchive, FaFileAlt,
-  FaDownload, FaClock, FaCheckCircle, FaExclamationTriangle
+  FaDownload, FaClock, FaCheckCircle, FaExclamationTriangle, FaBars,
+  FaTimes, FaChevronDown, FaChevronUp, FaHome, FaGlobe, FaUpload, FaCog
 } from 'react-icons/fa';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import TrainingInterface from './TrainingInterface';
 import ScriptGenerator from './ScriptGenerator';
@@ -31,8 +32,28 @@ const UserDashboard = ({ user }) => {
   const [subscription, setSubscription] = useState(null);
   const [websiteUploads, setWebsiteUploads] = useState({});
   const [loadingUploads, setLoadingUploads] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [expandedWebsiteId, setExpandedWebsiteId] = useState(null);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   
   const navigate = useNavigate();
+
+  // Check if device is mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
+      if (window.innerWidth >= 768) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -42,7 +63,6 @@ const UserDashboard = ({ user }) => {
   }, [user]);
 
   useEffect(() => {
-    // Load uploads for selected website when in uploads tab
     if (activeTab === 'uploads' && selectedWebsiteForFiles) {
       loadWebsiteUploads(selectedWebsiteForFiles.website_id);
     }
@@ -86,7 +106,6 @@ const UserDashboard = ({ user }) => {
     try {
       const token = localStorage.getItem('access_token');
       
-      // Load user stats
       const statsResponse = await fetch(`${API_URL}/api/user/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -100,7 +119,6 @@ const UserDashboard = ({ user }) => {
         }
       }
       
-      // Load user websites
       const websitesResponse = await fetch(`${API_URL}/api/user/websites`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -112,12 +130,10 @@ const UserDashboard = ({ user }) => {
         if (websitesData.success) {
           setUserWebsites(websitesData.websites || []);
           
-          // If there are websites and no selected website for files, select the first one
           if (websitesData.websites?.length > 0 && !selectedWebsiteForFiles) {
             setSelectedWebsiteForFiles(websitesData.websites[0]);
           }
           
-          // Load uploads for each website
           websitesData.websites?.forEach(website => {
             loadWebsiteUploads(website.website_id);
           });
@@ -171,6 +187,9 @@ const UserDashboard = ({ user }) => {
     }
     
     setShowTrainForm(true);
+    if (isMobile) {
+      setIsMobileMenuOpen(false);
+    }
   };
 
   const handleWebsiteTrained = (websiteData) => {
@@ -224,7 +243,6 @@ const UserDashboard = ({ user }) => {
   const handleOpenFileManager = (website) => {
     setSelectedWebsiteForFiles(website);
     setActiveTab('uploads');
-    // Load uploads immediately when opening file manager
     loadWebsiteUploads(website.website_id);
   };
 
@@ -305,34 +323,38 @@ const UserDashboard = ({ user }) => {
     });
   };
 
+  const toggleWebsiteExpand = (websiteId) => {
+    setExpandedWebsiteId(expandedWebsiteId === websiteId ? null : websiteId);
+  };
+
   const StatsCard = ({ icon, title, value, color, subtext }) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-white rounded-2xl p-6 shadow-lg border border-gray-200 hover:shadow-xl transition-shadow ${color}`}
+      className={`bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg border border-gray-200 hover:shadow-xl transition-shadow ${color}`}
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-600 mb-2">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">{value || 0}</p>
+          <p className="text-xs md:text-sm text-gray-600 mb-1 md:mb-2">{title}</p>
+          <p className="text-xl md:text-3xl font-bold text-gray-900">{value || 0}</p>
           {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
         </div>
-        <div className="text-3xl opacity-80">
+        <div className="text-xl md:text-3xl opacity-80">
           {icon}
         </div>
       </div>
     </motion.div>
   );
 
-  const DashboardTabs = () => (
-    <div className="border-b border-gray-200 mb-8">
-      <nav className="flex space-x-8 overflow-x-auto">
+  const MobileTabBar = () => (
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 md:hidden">
+      <div className="flex justify-around items-center h-16">
         {[
-          { id: 'overview', label: 'Overview', icon: <FaChartBar /> },
-          { id: 'websites', label: 'My Websites', icon: <FaRobot /> },
-          { id: 'train', label: 'Train New', icon: <FaPlus /> },
-          { id: 'uploads', label: 'Uploads', icon: <FaFileUpload /> },
-          { id: 'generate', label: 'Generate Script', icon: <FaCode /> },
+          { id: 'overview', icon: <FaHome className="text-xl" />, label: 'Home' },
+          { id: 'websites', icon: <FaGlobe className="text-xl" />, label: 'Sites' },
+          { id: 'train', icon: <FaPlus className="text-xl" />, label: 'Train' },
+          { id: 'uploads', icon: <FaUpload className="text-xl" />, label: 'Files' },
+          { id: 'generate', icon: <FaCode className="text-xl" />, label: 'Code' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -342,38 +364,111 @@ const UserDashboard = ({ user }) => {
                 setSelectedWebsiteForFiles(userWebsites[0]);
               }
             }}
-            className={`py-4 px-1 flex items-center space-x-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            className={`flex flex-col items-center justify-center flex-1 h-full ${
+              activeTab === tab.id ? 'text-blue-600' : 'text-gray-500'
             }`}
           >
             {tab.icon}
-            <span>{tab.label}</span>
+            <span className="text-xs mt-1">{tab.label}</span>
           </button>
         ))}
-      </nav>
+      </div>
     </div>
   );
 
-  const WebsiteCard = ({ website, isRecent = false }) => {
+  const MobileHeader = () => (
+    <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-30">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <img src={botimage} alt="Botnexify" className="h-8 w-auto" />
+          <div>
+            <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
+            <p className="text-xs text-gray-600 truncate max-w-[150px]">
+              Welcome, {user?.full_name?.split(' ')[0] || 'User'}!
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 rounded-lg hover:bg-gray-100"
+        >
+          {isMobileMenuOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
+        </button>
+      </div>
+
+      {/* Mobile Menu Dropdown */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-lg px-4 py-3 space-y-2"
+          >
+            {subscription && (
+              <div className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-lg flex items-center">
+                <FaCrown className="mr-2" />
+                <span>{subscription.plan_name || 'Premium'}</span>
+                {subscription.days_remaining > 0 && (
+                  <span className="ml-2 text-green-100 text-xs">
+                    ({subscription.days_remaining}d)
+                  </span>
+                )}
+              </div>
+            )}
+            <button
+              onClick={handleTrainButtonClick}
+              disabled={isProcessing}
+              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-70"
+            >
+              {isProcessing ? (
+                <>
+                  <FaSync className="animate-spin" />
+                  <span>Processing...</span>
+                </>
+              ) : (
+                <>
+                  <FaPlus />
+                  <span>Train New Chatbot</span>
+                </>
+              )}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
+  const WebsiteCard = ({ website }) => {
     const uploads = websiteUploads[website.website_id] || { files: [], count: 0 };
+    const isExpanded = expandedWebsiteId === website.website_id;
     
     return (
-      <div className={`border border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200 ${isRecent ? 'bg-white' : ''}`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <FaRobot className="text-blue-600" />
+      <div className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all duration-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3 flex-1">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <FaRobot className="text-blue-600 text-lg md:text-xl" />
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">{website.website_name || 'Unnamed Website'}</h3>
-              <p className="text-sm text-gray-500">
-                ID: {website.website_id ? website.website_id.substring(0, 8) + '...' : 'N/A'}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-900 truncate">
+                {website.website_name || 'Unnamed Website'}
+              </h3>
+              <p className="text-xs text-gray-500 truncate">
+                {website.website_url || 'No URL'}
               </p>
             </div>
           </div>
-          <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+          <button
+            onClick={() => toggleWebsiteExpand(website.website_id)}
+            className="p-2 hover:bg-gray-100 rounded-lg ml-2"
+          >
+            {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
+          </button>
+        </div>
+        
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
             website.status === 'active' ? 'bg-green-100 text-green-800' :
             website.status === 'training' ? 'bg-yellow-100 text-yellow-800' :
             website.status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -381,55 +476,62 @@ const UserDashboard = ({ user }) => {
           }`}>
             {website.status || 'active'}
           </span>
+          <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
+            {uploads.count || website.upload_count || website.files_count || '0'} files
+          </span>
         </div>
         
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <p className="text-gray-600">Data Points</p>
-              <p className="font-semibold text-blue-700">
-                {website.data_points || website.stats?.data_points || '0'}
-              </p>
-            </div>
-            <div className="bg-green-50 p-3 rounded-lg">
-              <p className="text-gray-600">Files</p>
-              <p className="font-semibold text-green-700">
-                {uploads.count || website.upload_count || website.files_count || '0'}
-              </p>
-            </div>
-          </div>
-          
-          <div className="text-sm text-gray-600">
-            <p className="truncate">{website.website_url || 'No URL'}</p>
-            <p className="text-xs text-gray-500 mt-1">
-              Created: {website.created_at ? formatDate(website.created_at) : 'N/A'}
-            </p>
-          </div>
-          
-          <div className="flex space-x-2">
-            <button
-              onClick={() => handleTestChat(website)}
-              className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-4 space-y-3"
             >
-              <FaEye />
-              <span>Test Chat</span>
-            </button>
-            <button
-              onClick={() => handleOpenFileManager(website)}
-              className="px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
-              title="Manage Files"
-            >
-              <FaFolderOpen />
-            </button>
-            <button
-              onClick={() => handleDeleteWebsite(website.website_id)}
-              className="px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
-              title="Delete"
-            >
-              <FaTrash />
-            </button>
-          </div>
-        </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="bg-blue-50 p-2 rounded-lg">
+                  <p className="text-gray-600 text-xs">Data Points</p>
+                  <p className="font-semibold text-blue-700 text-sm">
+                    {website.data_points || website.stats?.data_points || '0'}
+                  </p>
+                </div>
+                <div className="bg-green-50 p-2 rounded-lg">
+                  <p className="text-gray-600 text-xs">Created</p>
+                  <p className="font-semibold text-green-700 text-xs">
+                    {website.created_at ? new Date(website.created_at).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex flex-col space-y-2">
+                <button
+                  onClick={() => handleTestChat(website)}
+                  className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <FaEye />
+                  <span>Test Chat</span>
+                </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleOpenFileManager(website)}
+                    className="flex-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <FaFolderOpen />
+                    <span>Files</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteWebsite(website.website_id)}
+                    className="flex-1 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <FaTrash />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };
@@ -440,41 +542,41 @@ const UserDashboard = ({ user }) => {
     
     if (!files.length) {
       return (
-        <div className="text-center py-8">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <FaFileUpload className="text-gray-400 text-xl" />
+        <div className="text-center py-6 md:py-8">
+          <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+            <FaFileUpload className="text-gray-400 text-lg md:text-xl" />
           </div>
-          <p className="text-gray-600">No files uploaded yet</p>
-          <p className="text-sm text-gray-500 mt-2">
-            Upload PDF, DOC, TXT, or other documents to enhance your chatbot's knowledge
+          <p className="text-sm md:text-base text-gray-600">No files uploaded yet</p>
+          <p className="text-xs md:text-sm text-gray-500 mt-2 px-4">
+            Upload PDF, DOC, TXT, or other documents
           </p>
         </div>
       );
     }
 
     return (
-      <div className="space-y-3">
+      <div className="space-y-2 md:space-y-3">
         {files.map((file, index) => (
           <div
             key={index}
-            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-3"
           >
-            <div className="flex items-center space-x-3 flex-1">
-              <div className="text-xl">
+            <div className="flex items-center space-x-3 flex-1 min-w-0">
+              <div className="text-lg md:text-xl flex-shrink-0">
                 {getFileIcon(file.filename || file.saved_filename)}
               </div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 text-sm md:text-base truncate">
                   {file.original_filename || file.filename || file.saved_filename}
                 </p>
-                <div className="flex items-center space-x-4 text-xs text-gray-500 mt-1">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
                   <span className="flex items-center">
                     <FaFile className="mr-1" />
                     {formatFileSize(file.size || 0)}
                   </span>
                   <span className="flex items-center">
                     <FaClock className="mr-1" />
-                    {formatDate(file.uploaded_at || file.modified || file.created_at)}
+                    {new Date(file.uploaded_at || file.modified || file.created_at).toLocaleDateString()}
                   </span>
                   {file.processed && (
                     <span className="flex items-center text-green-600">
@@ -482,33 +584,27 @@ const UserDashboard = ({ user }) => {
                       Processed
                     </span>
                   )}
-                  {file.processed === false && (
-                    <span className="flex items-center text-yellow-600">
-                      <FaExclamationTriangle className="mr-1" />
-                      Pending
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 ml-11 sm:ml-0">
               {file.saved_filename && (
                 <Link
                   to={`${API_URL}/data/${websiteId}/uploads/${file.saved_filename}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors"
+                  className="p-1.5 md:p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors"
                   title="Download"
                 >
-                  <FaDownload />
+                  <FaDownload size={14} />
                 </Link>
               )}
               <button
                 onClick={() => handleDeleteFile(websiteId, file.saved_filename || file.filename)}
-                className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-colors"
+                className="p-1.5 md:p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-colors"
                 title="Delete"
               >
-                <FaTrash />
+                <FaTrash size={14} />
               </button>
             </div>
           </div>
@@ -519,10 +615,10 @@ const UserDashboard = ({ user }) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
         <div className="text-center max-w-sm">
-          <div className="relative mb-12">
-            <div className="relative w-24 h-24 mx-auto">
+          <div className="relative mb-8 md:mb-12">
+            <div className="relative w-16 h-16 md:w-24 md:h-24 mx-auto">
               <svg className="w-full h-full animate-spin" viewBox="0 0 100 100">
                 <circle
                   cx="50"
@@ -544,21 +640,21 @@ const UserDashboard = ({ user }) => {
               </svg>
               
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <FaRobot className="w-6 h-6 text-white" />
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <FaRobot className="w-4 h-4 md:w-6 md:h-6 text-white" />
                 </div>
               </div>
             </div>
           </div>
           
-          <h2 className="text-2xl font-semibold text-gray-800 mb-3">Botrion</h2>
-          <p className="text-gray-600 mb-8">Loading your dashboard...</p>
+          <h2 className="text-xl md:text-2xl font-semibold text-gray-800 mb-2 md:mb-3">Botnexify</h2>
+          <p className="text-sm md:text-base text-gray-600 mb-6 md:mb-8">Loading your dashboard...</p>
           
-          <div className="flex justify-center gap-2 mb-6">
+          <div className="flex justify-center gap-2">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
+                className="w-1.5 h-1.5 md:w-2 md:h-2 bg-blue-400 rounded-full animate-bounce"
                 style={{ animationDelay: `${i * 0.1}s` }}
               ></div>
             ))}
@@ -569,25 +665,28 @@ const UserDashboard = ({ user }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 pb-16 md:pb-0">
+      {/* Mobile Header */}
+      <MobileHeader />
+
+      {/* Desktop Header */}
+      <div className="hidden md:block bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-sm lg:text-base text-gray-600 mt-1">
                 Welcome back, <span className="font-semibold text-blue-600">{user?.full_name || 'User'}</span>!
               </p>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               {subscription && (
-                <div className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-full flex items-center">
-                  <FaCrown className="mr-2" />
+                <div className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs lg:text-sm font-medium rounded-full flex items-center">
+                  <FaCrown className="mr-1.5 lg:mr-2" />
                   <span>{subscription.plan_name || 'Premium'}</span>
                   {subscription.days_remaining > 0 && (
-                    <span className="ml-2 text-green-100">
-                      ({subscription.days_remaining} days left)
+                    <span className="ml-1.5 lg:ml-2 text-green-100 text-xs">
+                      ({subscription.days_remaining}d)
                     </span>
                   )}
                 </div>
@@ -595,7 +694,7 @@ const UserDashboard = ({ user }) => {
               <button
                 onClick={handleTrainButtonClick}
                 disabled={isProcessing}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center space-x-2 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                className="px-4 py-2 lg:px-6 lg:py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm lg:text-base font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center space-x-2 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isProcessing ? (
                   <>
@@ -614,10 +713,321 @@ const UserDashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <DashboardTabs />
-        
+      {/* Desktop Tabs */}
+      <div className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="border-b border-gray-200 mb-6 lg:mb-8 overflow-x-auto">
+          <nav className="flex space-x-6 lg:space-x-8 min-w-max">
+            {[
+              { id: 'overview', label: 'Overview', icon: <FaChartBar /> },
+              { id: 'websites', label: 'My Websites', icon: <FaRobot /> },
+              { id: 'train', label: 'Train New', icon: <FaPlus /> },
+              { id: 'uploads', label: 'Uploads', icon: <FaFileUpload /> },
+              { id: 'generate', label: 'Generate Script', icon: <FaCode /> },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === 'uploads' && !selectedWebsiteForFiles && userWebsites.length > 0) {
+                    setSelectedWebsiteForFiles(userWebsites[0]);
+                  }
+                }}
+                className={`py-3 lg:py-4 px-1 flex items-center space-x-2 text-xs lg:text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Content Area */}
+        <div className="bg-white rounded-xl lg:rounded-2xl shadow-lg p-4 lg:p-6">
+          {activeTab === 'overview' && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
+                <StatsCard
+                  icon={<FaRobot />}
+                  title="Total Websites"
+                  value={userStats?.total_websites || userWebsites.length}
+                  color="hover:border-blue-300"
+                />
+                <StatsCard
+                  icon={<FaComments />}
+                  title="Chat Messages"
+                  value={userStats?.chat_messages || 0}
+                  color="hover:border-green-300"
+                />
+                <StatsCard
+                  icon={<FaUsers />}
+                  title="Contact Forms"
+                  value={userStats?.contact_forms || 0}
+                  color="hover:border-purple-300"
+                />
+                <StatsCard
+                  icon={<FaDatabase />}
+                  title="Uploaded Files"
+                  value={userStats?.files || Object.values(websiteUploads).reduce((acc, curr) => acc + (curr.count || 0), 0)}
+                  color="hover:border-yellow-300"
+                />
+              </div>
+              
+              {/* Quick Actions */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl lg:rounded-2xl p-4 lg:p-6 border border-blue-200">
+                  <div className="flex items-center space-x-3 lg:space-x-4 mb-3 lg:mb-4">
+                    <div className="w-10 h-10 lg:w-12 lg:h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <FaPlus className="text-blue-600 text-lg lg:text-xl" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 text-sm lg:text-base">Train Chatbot</h3>
+                      <p className="text-xs lg:text-sm text-gray-600">Create a new AI chatbot</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('train')}
+                    className="w-full py-2 bg-blue-600 text-white text-sm lg:text-base font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Train New
+                  </button>
+                </div>
+                
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl lg:rounded-2xl p-4 lg:p-6 border border-green-200">
+                  <div className="flex items-center space-x-3 lg:space-x-4 mb-3 lg:mb-4">
+                    <div className="w-10 h-10 lg:w-12 lg:h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                      <FaFileUpload className="text-green-600 text-lg lg:text-xl" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 text-sm lg:text-base">Upload Files</h3>
+                      <p className="text-xs lg:text-sm text-gray-600">Add documents to chatbots</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab('uploads');
+                      if (userWebsites.length > 0) {
+                        setSelectedWebsiteForFiles(userWebsites[0]);
+                      }
+                    }}
+                    className="w-full py-2 bg-green-600 text-white text-sm lg:text-base font-medium rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Upload Files
+                  </button>
+                </div>
+                
+                <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl lg:rounded-2xl p-4 lg:p-6 border border-purple-200">
+                  <div className="flex items-center space-x-3 lg:space-x-4 mb-3 lg:mb-4">
+                    <div className="w-10 h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                      <FaCode className="text-purple-600 text-lg lg:text-xl" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 text-sm lg:text-base">Generate Script</h3>
+                      <p className="text-xs lg:text-sm text-gray-600">Get embed code for website</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('generate')}
+                    className="w-full py-2 bg-purple-600 text-white text-sm lg:text-base font-medium rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Generate Code
+                  </button>
+                </div>
+              </div>
+              
+              {/* Recent Websites */}
+              <div className="mb-6 lg:mb-8">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg lg:text-xl font-bold text-gray-900 flex items-center">
+                    <FaRobot className="mr-2 text-blue-600" />
+                    Recent Websites
+                  </h2>
+                  {userWebsites.length > 0 && (
+                    <button
+                      onClick={() => setActiveTab('websites')}
+                      className="text-sm lg:text-base text-blue-600 hover:text-blue-800 font-medium flex items-center"
+                    >
+                      View All ({userWebsites.length})
+                      <FaExternalLinkAlt className="ml-2 text-xs" />
+                    </button>
+                  )}
+                </div>
+                
+                {userWebsites.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {userWebsites.slice(0, 3).map(website => (
+                      <WebsiteCard key={website.website_id} website={website} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 lg:py-12">
+                    <div className="w-16 h-16 lg:w-20 lg:h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FaRobot className="text-gray-400 text-xl lg:text-2xl" />
+                    </div>
+                    <h3 className="text-base lg:text-lg font-medium text-gray-900 mb-2">No websites yet</h3>
+                    <p className="text-sm lg:text-base text-gray-600 mb-6">Get started by training your first chatbot</p>
+                    <button
+                      onClick={() => setShowTrainForm(true)}
+                      className="px-4 py-2 lg:px-6 lg:py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm lg:text-base font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
+                    >
+                      Train Your First Chatbot
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+          
+          {activeTab === 'websites' && (
+            <>
+              <div className="flex justify-between items-center mb-4 lg:mb-6">
+                <h2 className="text-lg lg:text-xl font-bold text-gray-900 flex items-center">
+                  <FaRobot className="mr-2 text-blue-600" />
+                  My Websites
+                </h2>
+                <button
+                  onClick={() => setShowTrainForm(true)}
+                  className="px-3 py-1.5 lg:px-4 lg:py-2 bg-blue-600 text-white text-sm lg:text-base font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                >
+                  <FaPlus />
+                  <span>New</span>
+                </button>
+              </div>
+              
+              {userWebsites.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {userWebsites.map(website => (
+                    <WebsiteCard key={website.website_id} website={website} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 lg:py-12">
+                  <div className="w-16 h-16 lg:w-20 lg:h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FaRobot className="text-gray-400 text-xl lg:text-2xl" />
+                  </div>
+                  <p className="text-sm lg:text-base text-gray-600">No websites yet. Train your first chatbot!</p>
+                </div>
+              )}
+            </>
+          )}
+          
+          {activeTab === 'train' && (
+            <TrainingInterface 
+              onWebsiteTrained={handleWebsiteTrained}
+              onTrainingStart={() => setIsProcessing(true)}
+              onTrainingComplete={() => setIsProcessing(false)}
+              isProcessing={isProcessing}
+            />
+          )}
+          
+          {activeTab === 'uploads' && (
+            <>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 lg:mb-6">
+                <h2 className="text-lg lg:text-xl font-bold text-gray-900 flex items-center">
+                  <FaFileUpload className="mr-2 text-green-600" />
+                  File Uploads
+                </h2>
+                {userWebsites.length > 0 && (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                    <span className="text-xs lg:text-sm text-gray-600">Select website:</span>
+                    <select
+                      value={selectedWebsiteForFiles?.website_id || ''}
+                      onChange={(e) => {
+                        const website = userWebsites.find(w => w.website_id === e.target.value);
+                        setSelectedWebsiteForFiles(website);
+                        if (website) {
+                          loadWebsiteUploads(website.website_id);
+                        }
+                      }}
+                      className="w-full sm:w-auto px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select a website...</option>
+                      {userWebsites.map(website => (
+                        <option key={website.website_id} value={website.website_id}>
+                          {website.website_name} ({websiteUploads[website.website_id]?.count || 0} files)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              
+              {selectedWebsiteForFiles ? (
+                <div className="space-y-4 lg:space-y-6">
+                  <FileManager 
+                    website={selectedWebsiteForFiles}
+                    onUploadComplete={handleFileUploadComplete}
+                  />
+                  
+                  <div className="mt-6 lg:mt-8">
+                    <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4 flex items-center">
+                      <FaFile className="mr-2" />
+                      Uploaded Files
+                    </h3>
+                    <FileList websiteId={selectedWebsiteForFiles.website_id} />
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 lg:py-12">
+                  <div className="w-16 h-16 lg:w-20 lg:h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FaFileUpload className="text-gray-400 text-xl lg:text-2xl" />
+                  </div>
+                  <h3 className="text-base lg:text-lg font-medium text-gray-900 mb-2">Select a Website</h3>
+                  <p className="text-sm lg:text-base text-gray-600 mb-6">Choose a website to manage its files</p>
+                  {userWebsites.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {userWebsites.slice(0, 3).map(website => (
+                        <button
+                          key={website.website_id}
+                          onClick={() => {
+                            setSelectedWebsiteForFiles(website);
+                            loadWebsiteUploads(website.website_id);
+                          }}
+                          className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all duration-200 text-left"
+                        >
+                          <div className="flex items-center space-x-3 mb-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <FaRobot className="text-blue-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900 text-sm">{website.website_name}</h3>
+                              <p className="text-xs text-gray-500">
+                                {websiteUploads[website.website_id]?.count || 0} files
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-blue-600 text-sm font-medium">Manage Files →</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm lg:text-base text-gray-600">You need to train a chatbot first</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          
+          {activeTab === 'generate' && (
+            <ScriptGenerator 
+              websites={userWebsites}
+              onTestChat={handleTestChat}
+              isProcessing={isProcessing}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Mobile Content */}
+      <div className="md:hidden px-4 py-4 pb-20">
         {activeTab === 'overview' && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -625,16 +1035,16 @@ const UserDashboard = ({ user }) => {
             transition={{ duration: 0.5 }}
           >
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-2 gap-3 mb-4">
               <StatsCard
                 icon={<FaRobot />}
-                title="Total Websites"
+                title="Websites"
                 value={userStats?.total_websites || userWebsites.length}
                 color="hover:border-blue-300"
               />
               <StatsCard
                 icon={<FaComments />}
-                title="Chat Messages"
+                title="Messages"
                 value={userStats?.chat_messages || 0}
                 color="hover:border-green-300"
               />
@@ -646,238 +1056,150 @@ const UserDashboard = ({ user }) => {
               />
               <StatsCard
                 icon={<FaDatabase />}
-                title="Uploaded Files"
+                title="Files"
                 value={userStats?.files || Object.values(websiteUploads).reduce((acc, curr) => acc + (curr.count || 0), 0)}
                 color="hover:border-yellow-300"
               />
             </div>
             
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <FaPlus className="text-blue-600 text-xl" />
+            <div className="space-y-3 mb-4">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <FaPlus className="text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Train Chatbot</h3>
+                      <p className="text-xs text-gray-600">Create new AI chatbot</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Train Chatbot</h3>
-                    <p className="text-sm text-gray-600">Create a new AI chatbot</p>
-                  </div>
+                  <button
+                    onClick={() => setActiveTab('train')}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                  >
+                    Train
+                  </button>
                 </div>
-                <button
-                  onClick={() => setActiveTab('train')}
-                  className="w-full py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Train New
-                </button>
               </div>
               
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                    <FaFileUpload className="text-green-600 text-xl" />
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <FaFileUpload className="text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Upload Files</h3>
+                      <p className="text-xs text-gray-600">Add documents</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Upload Files</h3>
-                    <p className="text-sm text-gray-600">Add documents to chatbots</p>
-                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab('uploads');
+                      if (userWebsites.length > 0) {
+                        setSelectedWebsiteForFiles(userWebsites[0]);
+                      }
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700"
+                  >
+                    Upload
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setActiveTab('uploads');
-                    if (userWebsites.length > 0) {
-                      setSelectedWebsiteForFiles(userWebsites[0]);
-                    }
-                  }}
-                  className="w-full py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Upload Files
-                </button>
               </div>
               
-              <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl p-6 border border-purple-200">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                    <FaCode className="text-purple-600 text-xl" />
+              <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <FaCode className="text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Get Script</h3>
+                      <p className="text-xs text-gray-600">Embed code</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Generate Script</h3>
-                    <p className="text-sm text-gray-600">Get embed code for website</p>
-                  </div>
+                  <button
+                    onClick={() => setActiveTab('generate')}
+                    className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700"
+                  >
+                    Generate
+                  </button>
                 </div>
-                <button
-                  onClick={() => setActiveTab('generate')}
-                  className="w-full py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors"
-                >
-                  Generate Code
-                </button>
               </div>
             </div>
             
-            {/* Recent Websites Section */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center">
+            {/* Recent Websites */}
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="font-semibold text-gray-900 flex items-center">
                   <FaRobot className="mr-2 text-blue-600" />
                   Recent Websites
                 </h2>
                 {userWebsites.length > 0 && (
                   <button
                     onClick={() => setActiveTab('websites')}
-                    className="text-blue-600 hover:text-blue-800 font-medium flex items-center"
+                    className="text-blue-600 text-sm"
                   >
                     View All ({userWebsites.length})
-                    <FaExternalLinkAlt className="ml-2 text-sm" />
                   </button>
                 )}
               </div>
               
               {userWebsites.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-3">
                   {userWebsites.slice(0, 3).map(website => (
-                    <WebsiteCard key={website.website_id} website={website} isRecent={true} />
+                    <WebsiteCard key={website.website_id} website={website} />
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <FaRobot className="text-gray-400 text-2xl" />
+                <div className="text-center py-6">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <FaRobot className="text-gray-400" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No websites yet</h3>
-                  <p className="text-gray-600 mb-6">Get started by training your first chatbot</p>
-                  <button
-                    onClick={() => setShowTrainForm(true)}
-                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
-                  >
-                    Train Your First Chatbot
-                  </button>
+                  <p className="text-sm text-gray-600">No websites yet</p>
                 </div>
               )}
             </div>
-            
-            {/* Recent Uploads Section */}
-            {userWebsites.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-lg p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
-                    <FaFileUpload className="mr-2 text-green-600" />
-                    Recent Uploads
-                  </h2>
-                  <button
-                    onClick={() => setActiveTab('uploads')}
-                    className="text-green-600 hover:text-green-800 font-medium flex items-center"
-                  >
-                    View All Uploads
-                    <FaExternalLinkAlt className="ml-2 text-sm" />
-                  </button>
-                </div>
-                
-                {Object.entries(websiteUploads).some(([_, data]) => data.files?.length > 0) ? (
-                  <div className="space-y-4">
-                    {Object.entries(websiteUploads).map(([websiteId, data]) => {
-                      const website = userWebsites.find(w => w.website_id === websiteId);
-                      if (!website || !data.files?.length) return null;
-                      
-                      return (
-                        <div key={websiteId} className="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
-                          <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-medium text-gray-900">
-                              {website.website_name || 'Unnamed Website'}
-                            </h3>
-                            <span className="text-sm text-gray-500">
-                              {data.files.length} file{data.files.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <div className="space-y-2">
-                            {data.files.slice(0, 3).map((file, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                                <div className="flex items-center space-x-3">
-                                  <div className="text-lg">
-                                    {getFileIcon(file.filename || file.saved_filename)}
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-900">
-                                      {file.original_filename || file.filename || file.saved_filename}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      {formatFileSize(file.size || 0)} • {formatDate(file.uploaded_at || file.modified)}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <FaFileUpload className="text-gray-400 text-xl" />
-                    </div>
-                    <p className="text-gray-600">No files uploaded yet</p>
-                    <button
-                      onClick={() => {
-                        setActiveTab('uploads');
-                        if (userWebsites.length > 0) {
-                          setSelectedWebsiteForFiles(userWebsites[0]);
-                        }
-                      }}
-                      className="mt-4 px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                    >
-                      Upload Your First File
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
           </motion.div>
         )}
         
         {activeTab === 'websites' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-semibold text-gray-900 flex items-center">
                 <FaRobot className="mr-2 text-blue-600" />
                 My Websites
               </h2>
               <button
                 onClick={() => setShowTrainForm(true)}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center space-x-2"
-                disabled={isProcessing}
+                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 flex items-center space-x-1"
               >
-                <FaPlus />
-                <span>New Website</span>
+                <FaPlus size={12} />
+                <span>New</span>
               </button>
             </div>
             
             {userWebsites.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-3">
                 {userWebsites.map(website => (
                   <WebsiteCard key={website.website_id} website={website} />
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaRobot className="text-gray-400 text-2xl" />
+              <div className="text-center py-8">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <FaRobot className="text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No websites yet</h3>
-                <p className="text-gray-600 mb-6">Get started by training your first chatbot</p>
-                <button
-                  onClick={() => setShowTrainForm(true)}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
-                >
-                  Train Your First Chatbot
-                </button>
+                <p className="text-sm text-gray-600">No websites yet</p>
               </div>
             )}
           </div>
         )}
         
         {activeTab === 'train' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-xl p-4 shadow-sm">
             <TrainingInterface 
               onWebsiteTrained={handleWebsiteTrained}
               onTrainingStart={() => setIsProcessing(true)}
@@ -888,15 +1210,16 @@ const UserDashboard = ({ user }) => {
         )}
         
         {activeTab === 'uploads' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="mb-4">
+              <h2 className="font-semibold text-gray-900 flex items-center mb-3">
                 <FaFileUpload className="mr-2 text-green-600" />
                 File Uploads
               </h2>
+              
               {userWebsites.length > 0 && (
-                <div className="flex items-center space-x-4">
-                  <span className="text-gray-600">Select website:</span>
+                <div className="mb-4">
+                  <label className="block text-xs text-gray-600 mb-1">Select Website</label>
                   <select
                     value={selectedWebsiteForFiles?.website_id || ''}
                     onChange={(e) => {
@@ -906,7 +1229,7 @@ const UserDashboard = ({ user }) => {
                         loadWebsiteUploads(website.website_id);
                       }
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select a website...</option>
                     {userWebsites.map(website => (
@@ -920,14 +1243,14 @@ const UserDashboard = ({ user }) => {
             </div>
             
             {selectedWebsiteForFiles ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <FileManager 
                   website={selectedWebsiteForFiles}
                   onUploadComplete={handleFileUploadComplete}
                 />
                 
-                <div className="mt-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <div className="mt-4">
+                  <h3 className="font-medium text-gray-900 mb-3 flex items-center text-sm">
                     <FaFile className="mr-2" />
                     Uploaded Files
                   </h3>
@@ -935,40 +1258,29 @@ const UserDashboard = ({ user }) => {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaFileUpload className="text-gray-400 text-2xl" />
+              <div className="text-center py-6">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <FaFileUpload className="text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Website</h3>
-                <p className="text-gray-600 mb-6">Choose a website to manage its files</p>
+                <p className="text-sm text-gray-600 mb-3">Select a website to manage files</p>
                 {userWebsites.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {userWebsites.slice(0, 3).map(website => (
+                  <div className="space-y-2">
+                    {userWebsites.slice(0, 2).map(website => (
                       <button
                         key={website.website_id}
                         onClick={() => {
                           setSelectedWebsiteForFiles(website);
                           loadWebsiteUploads(website.website_id);
                         }}
-                        className="border border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200 text-left"
+                        className="w-full text-left p-3 border border-gray-200 rounded-lg"
                       >
-                        <div className="flex items-center space-x-3 mb-4">
-                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <FaRobot className="text-blue-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-900">{website.website_name}</h3>
-                            <p className="text-sm text-gray-500">
-                              {websiteUploads[website.website_id]?.count || 0} files
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-blue-600 font-medium">Manage Files →</span>
+                        <p className="font-medium text-sm">{website.website_name}</p>
+                        <p className="text-xs text-gray-500">{websiteUploads[website.website_id]?.count || 0} files</p>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-600">You need to train a chatbot first to upload files</p>
+                  <p className="text-xs text-gray-500">Train a chatbot first</p>
                 )}
               </div>
             )}
@@ -976,7 +1288,7 @@ const UserDashboard = ({ user }) => {
         )}
         
         {activeTab === 'generate' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-xl p-4 shadow-sm">
             <ScriptGenerator 
               websites={userWebsites}
               onTestChat={handleTestChat}
@@ -985,41 +1297,43 @@ const UserDashboard = ({ user }) => {
           </div>
         )}
       </div>
+
+      {/* Mobile Tab Bar */}
+      <MobileTabBar />
       
       {/* Training Modal */}
-{showTrainForm && (
-  <div className="fixed inset-0 bg-black/20 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <img className='w-25' src={botimage} alt="Botrion" />
-          <button
-            onClick={() => {
-              if (!isProcessing) {
-                setShowTrainForm(false);
-              }
-            }}
-            className="text-gray-400 hover:text-gray-600 text-2xl disabled:opacity-50"
-            disabled={isProcessing}
-          >
-            &times;
-          </button>
+      {showTrainForm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4 z-50">
+          <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-4 md:p-6">
+              <div className="flex justify-between items-center mb-4 md:mb-6">
+                <img className='h-8 md:h-10 w-auto' src={botimage} alt="Botnexify" />
+                <button
+                  onClick={() => {
+                    if (!isProcessing) {
+                      setShowTrainForm(false);
+                    }
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl disabled:opacity-50"
+                  disabled={isProcessing}
+                >
+                  &times;
+                </button>
+              </div>
+              
+              <TrainingInterface 
+                onWebsiteTrained={handleWebsiteTrained}
+                onTrainingStart={() => setIsProcessing(true)}
+                onTrainingComplete={() => {
+                  setIsProcessing(false);
+                  setShowTrainForm(false);
+                }}
+                isProcessing={isProcessing}
+              />
+            </div>
+          </div>
         </div>
-        
-        {/* TrainingInterface - it now shows its own progress popup when processing */}
-        <TrainingInterface 
-          onWebsiteTrained={handleWebsiteTrained}
-          onTrainingStart={() => setIsProcessing(true)}
-          onTrainingComplete={() => {
-            setIsProcessing(false);
-            setShowTrainForm(false);
-          }}
-          isProcessing={isProcessing}
-        />
-      </div>
-    </div>
-  </div>
-)}
+      )}
       
       {/* Chat Widget */}
       {showChatWidget && selectedWebsite && (
