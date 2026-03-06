@@ -203,29 +203,29 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
           </div>
           
           <div className="py-1">
-            <Link
-              to="/dashboard"
+            <a
+              href="/dashboard"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <FaHome className="mr-3 text-gray-400" />
               Dashboard
-            </Link>
+            </a>
             
-            <Link
-              to="/profile"
+            <a
+              href="/profile"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <FaUser className="mr-3 text-gray-400" />
               My Profile
-            </Link>
+            </a>
             
-            <Link
-              to="/settings"
+            <a
+              href="/settings"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <FaCog className="mr-3 text-gray-400" />
               Settings
-            </Link>
+            </a>
           </div>
           
           <div className="border-t border-gray-100 py-1">
@@ -260,7 +260,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
                 <FaRobot className="text-white text-2xl" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">🤖 Botrion</h1>
+                <h1 className="text-2xl font-bold text-gray-900">🤖 Botnexify</h1>
                 {/* <p className="text-sm text-gray-600 hidden sm:block">Create AI chatbots for any website</p> */}
               </div>
             </div>
@@ -355,25 +355,25 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
             <div className="px-2 pt-2 pb-3 space-y-1">
               {user ? (
                 <>
-                  <Link
-                    to="/dashboard"
+                  <a
+                    href="/dashboard"
                     className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   >
                     Dashboard
-                  </Link>
-                  <Link
-                    to="/profile"
+                  </a>
+                  <a
+                    href="/profile"
                     className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   >
                     Profile
-                  </Link>
+                  </a>
                   
-                  <Link
-                    to="/settings"
+                  <a
+                    href="/settings"
                     className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   >
                     Settings
-                  </Link>
+                  </a>
                   <button
                     onClick={handleLogout}
                     className="block w-full text-left px-3 py-2 rounded-md text-red-600 hover:text-red-800 hover:bg-red-50"
