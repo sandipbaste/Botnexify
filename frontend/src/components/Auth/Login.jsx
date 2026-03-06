@@ -84,7 +84,7 @@ const Login = ({ onLogin, onSwitchToSignup, onForgotPassword, onClose }) => {
     
     // Check for specific backend connection error
     if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      toast.error('Cannot connect to backend server. Please make sure it is running on port 8000.');
+      toast.error('Internal Server Error.');
     } else {
       toast.error(error.message || 'Login failed. Please check your credentials.');
     }
