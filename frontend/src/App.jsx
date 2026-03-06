@@ -14,7 +14,7 @@ import UserProfile from './components/UserProfile';
 import UserSettings from './components/UserSettings';
 import SubscriptionPlans from './components/Payment/SubscriptionPlans';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://botrion.onrender.com';
+const API_URL = import.meta.env.VITE_API_URL || 'https://Botnexify.onrender.com';
 
 // Custom hook for navigation
 const useQuery = () => {
@@ -390,7 +390,7 @@ function App() {
             </div>
           </div>
           
-          <h2 className="text-2xl font-semibold text-gray-800 mb-3">Botrion</h2>
+          <h2 className="text-2xl font-semibold text-gray-800 mb-3">Botnexify</h2>
           <p className="text-gray-600 mb-8">Loading...</p>
           
           <div className="flex justify-center gap-2 mb-6">
