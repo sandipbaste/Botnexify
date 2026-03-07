@@ -5102,201 +5102,7 @@ async def test_chatbot_page(website_id: str):
             <title>Test Chatbot - {website_name}</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    max-width: 800px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    line-height: 1.6;
-                    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-                    min-height: 100vh;
-                }}
-                .container {{
-                    background: white;
-                    border-radius: 20px;
-                    padding: 30px;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-                }}
-                .header {{
-                    text-align: center;
-                    margin-bottom: 30px;
-                    padding-bottom: 20px;
-                    border-bottom: 2px solid #f0f0f0;
-                }}
-                .info-card {{
-                    background: #f8f9fa;
-                    border-radius: 15px;
-                    padding: 20px;
-                    margin: 20px 0;
-                    border-left: 5px solid {status_color};
-                }}
-                .status-badge {{
-                    display: inline-block;
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                    background: {status_color};
-                    color: white;
-                    font-weight: bold;
-                    font-size: 14px;
-                    margin: 10px 0;
-                }}
-                .test-instructions {{
-                    background: #e8f4f8;
-                    border-radius: 15px;
-                    padding: 20px;
-                    margin: 20px 0;
-                }}
-                .features {{
-                    display: grid;
-                    grid-template-columns: repeat(3, 1fr);
-                    gap: 15px;
-                    margin: 30px 0;
-                }}
-                .feature {{
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 10px;
-                    text-align: center;
-                    font-size: 14px;
-                }}
-                .debug-info {{
-                    background: #1e1e1e;
-                    color: #d4d4d4;
-                    padding: 15px;
-                    border-radius: 10px;
-                    font-family: monospace;
-                    font-size: 12px;
-                    margin-top: 30px;
-                }}
-                .btn {{
-                    display: inline-block;
-                    padding: 12px 24px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 8px;
-                    margin: 10px 5px;
-                    font-weight: 600;
-                    transition: transform 0.2s;
-                }}
-                .btn:hover {{
-                    transform: translateY(-2px);
-                }}
-                .btn-secondary {{
-                    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-                }}
-                .warning {{
-                    background: #fff3cd;
-                    border: 1px solid #ffeeba;
-                    color: #856404;
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin: 20px 0;
-                }}
-            </style>
-        </head>
         <body>
-            <div class="container">
-                <div class="header">
-                    <h1>🤖 Chatbot Test Page</h1>
-                    <p>Testing website: <strong>{website_name}</strong></p>
-                    <p>Website ID: <code>{website_id}</code></p>
-                    <div class="status-badge">{status_text}</div>
-                </div>
-                
-                <div class="info-card">
-                    <h3>📊 Website Information</h3>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">Name:</td>
-                            <td>{website_name}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">URL:</td>
-                            <td><a href="{website_url}" target="_blank">{website_url}</a></td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">Admin Email:</td>
-                            <td>{website.get('admin_email', 'Not set')}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">Storage:</td>
-                            <td><strong>Qdrant Cloud</strong> (No local files)</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">Embeddings Status:</td>
-                            <td>
-                                <span style="color: {status_color}; font-weight: bold;">
-                                    {status_details}
-                                </span>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-                
-                {f'''
-                <div class="test-instructions">
-                    <h3>✅ Chatbot is Ready!</h3>
-                    <ol>
-                        <li>The chatbot widget should appear in the <strong>bottom-right corner</strong></li>
-                        <li>Click the chat icon to open the widget</li>
-                        <li><strong>Complete the registration form</strong> (required before chatting)</li>
-                        <li>Ask questions about the website content</li>
-                        <li>Try the contact form by clicking the "Contact" button in footer</li>
-                        <li>Test auto-report by closing or refreshing this page</li>
-                    </ol>
-                </div>
-                ''' if has_embeddings else f'''
-                <div class="warning">
-                    <h3>⚠️ Chatbot Not Ready</h3>
-                    <p>The website has been trained but no embeddings were found in Qdrant Cloud.</p>
-                    <p>Please check:</p>
-                    <ul>
-                        <li>Qdrant Cloud connection and API keys</li>
-                        <li>Training status using <code>/api/training-status/{website_id}</code></li>
-                        <li>If training completed successfully</li>
-                    </ul>
-                    <p><strong>Error details:</strong> {embedding_error or "No embeddings found"}</p>
-                </div>
-                '''}
-                
-                <div class="features">
-                    <div class="feature">
-                        <div style="font-size: 30px; margin-bottom: 10px;">👤</div>
-                        <strong>User Registration</strong>
-                        <p style="font-size: 12px; color: #666;">Required before chatting</p>
-                    </div>
-                    <div class="feature">
-                        <div style="font-size: 30px; margin-bottom: 10px;">💬</div>
-                        <strong>AI Chat</strong>
-                        <p style="font-size: 12px; color: #666;">Qdrant Cloud search</p>
-                    </div>
-                    <div class="feature">
-                        <div style="font-size: 30px; margin-bottom: 10px;">📧</div>
-                        <strong>Auto Reports</strong>
-                        <p style="font-size: 12px; color: #666;">Email on close/refresh</p>
-                    </div>
-                </div>
-                
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="/api/generate-script/{website_id}" class="btn" target="_blank">📜 Generate Script</a>
-                    <a href="/api/website/{website_id}" class="btn btn-secondary" target="_blank">📊 View Stats</a>
-                    <a href="/" class="btn btn-secondary">🏠 Back to Home</a>
-                </div>
-                
-                <div class="debug-info">
-                    <strong>Debug Information:</strong><br>
-                    Website ID: {website_id}<br>
-                    Website Name: {website_name}<br>
-                    Has Embeddings: {has_embeddings}<br>
-                    Embeddings Count: {embeddings_count}<br>
-                    Storage: Qdrant Cloud<br>
-                    Script URL: {base_url}/embed/{website_id}/script.js<br>
-                    Timestamp: {datetime.now().isoformat()}
-                </div>
-            </div>
-            
             <!-- Embedded Chatbot Script -->
             <script src="{base_url}/embed/{website_id}/script.js" defer></script>
             
@@ -5331,13 +5137,11 @@ async def test_chatbot_page(website_id: str):
                                 z-index: 9999;
                                 opacity: 0.8;
                             `;
-                            statusDiv.textContent = 'Qdrant Cloud';
-                            document.body.appendChild(statusDiv);
                             
                         }} else if (checkCount < maxChecks) {{
                             setTimeout(checkChatbot, 500);
                         }} else {{
-                            console.log('❌ Chatbot widget not loaded');
+                            console.log('Chatbot widget not loaded');
                         }}
                     }}
                     
@@ -5346,8 +5150,7 @@ async def test_chatbot_page(website_id: str):
             </script>
         </body>
         </html>
-        """
-        
+        """        
         return HTMLResponse(content=html_content)
         
     except Exception as e:
