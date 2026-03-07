@@ -399,10 +399,10 @@ class AdminService:
         try:
             self.email_service.send_email(
                 to_email=email,
-                subject="🎉 You've been granted Admin access to Botrion",
+                subject="🎉 You've been granted Admin access to Botnexify",
                 body=f"""Dear {full_name},
 
-You have been granted administrative access to the Botrion system.
+You have been granted administrative access to the Botnexify system.
 
 Your admin account has been created with the following details:
 - Email: {email}
@@ -420,7 +420,7 @@ Admin privileges include:
 Please keep your credentials secure and change your password after first login.
 
 Best regards,
-Botrion Admin Team
+Botnexify Admin Team
 """,
                 website_id="admin_portal"
             )
