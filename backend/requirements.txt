@@ -91,7 +91,7 @@ pycparser==3.0
 pydantic==2.12.5
 pydantic-settings==2.12.0
 pydantic_core==2.41.5
-pyee==13.0.0
+pyee==11.0.1
 PyJWT==2.8.0
 PyPDF2==3.0.1
 PySocks==1.7.1
@@ -140,6 +140,7 @@ xxhash==3.6.0
 yarl==1.22.0
 zipp==3.23.0
 zstandard==0.25.0
+
 
 
 
