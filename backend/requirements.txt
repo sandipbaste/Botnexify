@@ -11,6 +11,7 @@ async-timeout==5.0.1
 attrs==25.4.0
 bcrypt==4.1.2
 playwright==1.42.0
+duckduckgo-search==6.1.12
 beautifulsoup4==4.14.3
 brotli==1.2.0
 cachetools==6.2.4
@@ -140,6 +141,7 @@ xxhash==3.6.0
 yarl==1.22.0
 zipp==3.23.0
 zstandard==0.25.0
+
 
 
 
