@@ -49,7 +49,7 @@ from app.vectoredb.vector_store import VectorStore
 load_dotenv()
 security = HTTPBearer()
 
-BACKEND_URL = os.getenv("BACKEND_URL").rstrip('/')
+BASE_URL = os.getenv("BASE_URL", "https://botnexify-frontend.onrender.com").rstrip("/")
 
 app = FastAPI(
     title="Chatbot Generator API",
@@ -59,7 +59,7 @@ app = FastAPI(
     redoc_url="/api/redoc",
     servers=[
         {
-            "url": BACKEND_URL,
+            "url": BASE_URL,
             "description": "Current server"
         }
     ]
@@ -180,7 +180,7 @@ class VerifyPaymentRequest(BaseModel):
 website_loader = WebsiteLoader(max_pages=50, max_depth=3)
 file_processor = FileProcessor()
 embedding_handler = EmbeddingHandler()
-chatbot_generator = ChatbotGenerator(base_url=BACKEND_URL)
+chatbot_generator = ChatbotGenerator(base_url=BASE_URL)
 chat_agent = ChatAgent()
 
 # In-memory store for training status
@@ -978,8 +978,8 @@ async def get_website_info(website_id: str):
             script_file = os.path.join("generated_scripts", f"chatbot_{website_id}.js")
             if os.path.exists(script_file):
                 website['has_script'] = True
-                website['script_url'] = f"{BACKEND_URL}/embed/{website_id}/script.js"
-                website['embed_code'] = f'<script src="{BACKEND_URL}/embed/{website_id}/script.js" defer></script>'
+                website['script_url'] = f"{BASE_URL}/embed/{website_id}/script.js"
+                website['embed_code'] = f'<script src="{BASE_URL}/embed/{website_id}/script.js" defer></script>'
             
             # Check for uploads
             upload_dir = os.path.join(website_dir, "uploads")
@@ -2819,7 +2819,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             async with httpx.AsyncClient(timeout=10.0) as client:
                 try:
                     response = await client.post(
-                        f"{BACKEND_URL}/api/chat/auto-report",
+                        f"{BASE_URL}/api/chat/auto-report",
                         data={"session_id": session_id}
                     )
                     if response.status_code == 200:
@@ -5074,7 +5074,7 @@ async def demo_chatbot(website_id: str):
                         <h2>Embed Code</h2>
                         <p>Add this code to your website's <code>&lt;head&gt;</code> section:</p>
                         <div class="code-block">
-                            &lt;script src="{BACKEND_URL}/embed/{website_id}/script.js" defer&gt;&lt;/script&gt;
+                            &lt;script src="{BASE_URL}/embed/{website_id}/script.js" defer&gt;&lt;/script&gt;
                         </div>
                         <p style="font-size: 14px; color: #666; margin-top: 10px;">
                             This script is <strong>{os.path.getsize(os.path.join('generated_scripts', f'chatbot_{website_id}.js')) if os.path.exists(os.path.join('generated_scripts', f'chatbot_{website_id}.js')) else 'unknown'}</strong> bytes
@@ -5118,11 +5118,11 @@ async def demo_chatbot(website_id: str):
                 
                 <div class="api-info">
                     <h2> API Information</h2>
-                    <p><strong>Chat Endpoint:</strong> <code>POST {BACKEND_URL}/api/chat</code></p>
-                    <p><strong>Contact Form:</strong> <code>POST {BACKEND_URL}/api/contact</code></p>
-                    <p><strong>Script URL:</strong> <code>{BACKEND_URL}/embed/{website_id}/script.js</code></p>
-                    <p><strong>Training Status:</strong> <code>GET {BACKEND_URL}/api/training-status/{website_id}</code></p>
-                    <p><strong>File Upload:</strong> <code>POST {BACKEND_URL}/api/upload/{website_id}</code></p>
+                    <p><strong>Chat Endpoint:</strong> <code>POST {BASE_URL}/api/chat</code></p>
+                    <p><strong>Contact Form:</strong> <code>POST {BASE_URL}/api/contact</code></p>
+                    <p><strong>Script URL:</strong> <code>{BASE_URL}/embed/{website_id}/script.js</code></p>
+                    <p><strong>Training Status:</strong> <code>GET {BASE_URL}/api/training-status/{website_id}</code></p>
+                    <p><strong>File Upload:</strong> <code>POST {BASE_URL}/api/upload/{website_id}</code></p>
                     <p><strong>Backend Running:</strong> <span style="color: green;"> Active</span></p>
                     <p><strong>Database:</strong> <span style="color: green;"> MySQL Connected</span></p>
                     <p><strong>Email:</strong> <span style="color: green;"> Enabled</span></p>
@@ -5130,16 +5130,16 @@ async def demo_chatbot(website_id: str):
                 </div>
                 
                 <div style="text-align: center; margin-top: 40px;">
-                    <a href="{BACKEND_URL}/api/website/{website_id}" class="btn" target="_blank">   View Website Info</a>
-                    <a href="{BACKEND_URL}/api/website/stats/{website_id}" class="btn" target="_blank"> View Statistics</a>
-                    <a href="{BACKEND_URL}/api/upload/{website_id}" class="btn" target="_blank"> Upload Files</a>
-                    <a href="{BACKEND_URL}/api/generate-script/{website_id}" class="btn" target="_blank"> Get Embed Code</a>
-                    <a href="{BACKEND_URL}/api/docs" class="btn btn-secondary" target="_blank"> API Documentation</a>
+                    <a href="{BASE_URL}/api/website/{website_id}" class="btn" target="_blank">   View Website Info</a>
+                    <a href="{BASE_URL}/api/website/stats/{website_id}" class="btn" target="_blank"> View Statistics</a>
+                    <a href="{BASE_URL}/api/upload/{website_id}" class="btn" target="_blank"> Upload Files</a>
+                    <a href="{BASE_URL}/api/generate-script/{website_id}" class="btn" target="_blank"> Get Embed Code</a>
+                    <a href="{BASE_URL}/api/docs" class="btn btn-secondary" target="_blank"> API Documentation</a>
                     <a href="/" class="btn btn-secondary" target="_blank"> Back to Home</a>
                 </div>
                 
                 <div class="footer">
-                    <p> Chatbot Generator API v3.0 | Running on {BACKEND_URL}</p>
+                    <p> Chatbot Generator API v3.0 | Running on {BASE_URL}</p>
                     <p style="font-size: 12px; margin-top: 10px; color: #888;">
                         The chatbot should appear in the bottom-right corner of this page.
                         If it doesn't appear, check the browser console (F12) for errors.
@@ -5148,7 +5148,7 @@ async def demo_chatbot(website_id: str):
             </div>
             
             <!-- Embedded Chatbot Script -->
-            <script src="{BACKEND_URL}/embed/{website_id}/script.js" defer></script>
+            <script src="{BASE_URL}/embed/{website_id}/script.js" defer></script>
             
             <script>
                 // Add some interactive features
@@ -5182,7 +5182,7 @@ async def test_chatbot_page(website_id: str):
     """Test page with embedded chatbot - Qdrant Cloud version"""
     try:
         # Get base URL from environment or use default
-        base_url = os.getenv("BACKEND_URL").rstrip('/')
+        base_url = os.getenv("BASE_URL").rstrip('/')
         
         # Check if website exists in database
         website = db_manager.get_website(website_id)
@@ -5488,13 +5488,13 @@ async def test_generated_script(website_id: str):
             </div>
             
             <div class="test-buttons">
-                <a href="{BACKEND_URL}/embed/{website_id}/script.js" target="_blank" class="btn btn-primary">
+                <a href="{BASE_URL}/embed/{website_id}/script.js" target="_blank" class="btn btn-primary">
                      View Generated Script
                 </a>
-                <a href="{BACKEND_URL}/api/generate-script/{website_id}" target="_blank" class="btn btn-secondary">
+                <a href="{BASE_URL}/api/generate-script/{website_id}" target="_blank" class="btn btn-secondary">
                      Get Embed Code
                 </a>
-                <a href="{BACKEND_URL}/api/website/{website_id}" target="_blank" class="btn btn-secondary">
+                <a href="{BASE_URL}/api/website/{website_id}" target="_blank" class="btn btn-secondary">
                        View Website Stats
                 </a>
             </div>
@@ -5505,7 +5505,7 @@ async def test_generated_script(website_id: str):
             </div>
             
             <!-- This is the generated chatbot script -->
-            <script src="{BACKEND_URL}/embed/{website_id}/script.js" defer></script>
+            <script src="{BASE_URL}/embed/{website_id}/script.js" defer></script>
             
             <script>
                 document.addEventListener('DOMContentLoaded', function() {{
@@ -5586,9 +5586,9 @@ if __name__ == "__main__":
     print("=" * 70)
     print(" CHATBOT GENERATOR API v3.0")
     print("=" * 70)
-    print(f" Local URL: {BACKEND_URL}")
-    print(f" API Docs: {BACKEND_URL}/api/docs")
-    print(f" Home Page: {BACKEND_URL}/")
+    print(f" Local URL: {BASE_URL}")
+    print(f" API Docs: {BASE_URL}/api/docs")
+    print(f" Home Page: {BASE_URL}/")
     print(f"  Database: MySQL")
     print(f" Email: Enabled")
     print(f" Auto-Reports: Enabled (browser close/reload)")

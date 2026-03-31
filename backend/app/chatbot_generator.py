@@ -8,10 +8,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BACKEND_URL = os.getenv("BACKEND_URL").rstrip('/')
+BASE_URL = os.getenv("BASE_URL", "https://botnexify-frontend.onrender.com").rstrip("/")
 
 class ChatbotGenerator:
-    def __init__(self, base_url: str = BACKEND_URL):
+    def __init__(self, base_url: str = BASE_URL):
         self.base_url = base_url.rstrip('/')
         self.scripts_dir = "generated_scripts"
         os.makedirs(self.scripts_dir, exist_ok=True)

@@ -14,7 +14,7 @@ from app.services.email_service import email_service
 
 load_dotenv()
 
-BACKEND_URL = os.getenv("BACKEND_URL").rstrip('/')
+BASE_URL = os.getenv("BASE_URL", "https://botnexify-frontend.onrender.com").rstrip("/")
 
 # Pydantic models
 class CreateAdminRequest(BaseModel):
@@ -265,7 +265,7 @@ Your admin account has been created with the following details:
 - Role: Administrator
 - Access: Full administrative privileges
 
-You can now log in to the admin panel at: {BACKEND_URL}
+You can now log in to the admin panel at: {BASE_URL}
 
 Admin privileges include:
 - User management
