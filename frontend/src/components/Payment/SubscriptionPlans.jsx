@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "https://botrion.onrender.com";
 
 const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard }) => {
   const [plans, setPlans] = useState([]);

@@ -13,7 +13,7 @@ import HomePage from './components/HomePage';
 import UserProfile from './components/UserProfile';
 import SubscriptionPlans from './components/Payment/SubscriptionPlans';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "https://botrion.onrender.com";
 
 // Custom hook for navigation
 const useQuery = () => {
