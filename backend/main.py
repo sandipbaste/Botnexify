@@ -5583,6 +5583,8 @@ async def general_exception_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
     
+    port = int(os.getenv("PORT", 8000))
+    host = os.getenv("BACKEND_HOST", "0.0.0.0")
     print("=" * 70)
     print(" CHATBOT GENERATOR API v3.0")
     print("=" * 70)
@@ -5639,8 +5641,8 @@ if __name__ == "__main__":
     
     uvicorn.run(
         app,
-        host=os.getenv("BACKEND_HOST", "0.0.0.0"),
-        port=int(os.getenv("PORT", 8000)),
-        reload=True,
+        host=host,
+        port=port,
+        reload=False,  # Set to False in production
         log_level="info"
     )
