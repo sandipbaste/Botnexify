@@ -19,7 +19,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
   useEffect(() => {
     // If user is admin, redirect to admin panel
     if (user?.role === 'admin') {
-      toast('Admins don\'t need subscriptions');
+      toast.info('Admins don\'t need subscriptions');
       navigate('/admin');
       return;
     }
@@ -92,11 +92,11 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
         price: 5,
         currency: 'INR',
         duration_days: 30,
-        max_websites: 3,
+        max_websites: 6,
         max_chat_messages: 5000,
         max_uploads: 20,
         features: [
-          '3 websites',
+          '6 websites',
           '5000 chat messages/month',
           '20 file uploads',
           'Basic support',
@@ -172,7 +172,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
         return;
       }
       
-      console.log(`💰 Creating order for ${plan.plan_name} plan...`);
+      console.log(` Creating order for ${plan.plan_name} plan...`);
       
       const response = await fetch(`${API_URL}/api/payments/create-order`, {
         method: 'POST',
@@ -186,7 +186,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
       const data = await response.json();
       
       if (data.success) {
-        console.log('✅ Order created successfully:', data);
+        console.log(' Order created successfully:', data);
         
         // Store our order ID for verification
         const ourOrderId = data.order_id;
@@ -194,7 +194,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
         
         // If using Razorpay
         if (data.payment_data && data.payment_data.razorpay_order_id) {
-          console.log('🎯 Opening Razorpay checkout...');
+          console.log(' Opening Razorpay checkout...');
           
           const options = {
             key: data.payment_data.razorpay_key,
@@ -204,7 +204,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
             description: `Subscribe to ${plan.plan_name} Plan`,
             order_id: data.payment_data.razorpay_order_id,
             handler: async function (response) {
-              console.log('🔄 Razorpay payment completed:', response);
+              console.log(' Razorpay payment completed:', response);
               await verifyPayment(response, plan, ourOrderId);
             },
             prefill: {
@@ -219,14 +219,14 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
               ondismiss: function() {
                 console.log('Payment modal dismissed');
                 setIsProcessing(false);
-                toast('Payment cancelled');
+                toast.info('Payment cancelled');
               }
             }
           };
           
           const razorpay = new window.Razorpay(options);
           razorpay.on('payment.failed', function(response) {
-            console.error('❌ Payment failed:', response.error);
+            console.error('  Payment failed:', response.error);
             toast.error(`Payment failed: ${response.error.description}`);
             setIsProcessing(false);
             
@@ -241,12 +241,12 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
           // You can add manual payment flow here
         }
       } else {
-        console.error('❌ Failed to create order:', data);
+        console.error('  Failed to create order:', data);
         toast.error(data.error || 'Failed to create payment order');
         setIsProcessing(false);
       }
     } catch (error) {
-      console.error('❌ Payment initiation error:', error);
+      console.error('  Payment initiation error:', error);
       toast.error('Failed to initiate payment');
       setIsProcessing(false);
     }
@@ -256,7 +256,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
     try {
       const token = localStorage.getItem('access_token');
       
-      console.log('🔄 Starting payment verification...');
+      console.log(' Starting payment verification...');
       console.log('Razorpay Order ID:', paymentResponse.razorpay_order_id);
       console.log('Our Order ID:', ourOrderId);
       
@@ -279,13 +279,13 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
       const data = await response.json();
       
       if (data.success) {
-        console.log('✅ Payment verified successfully:', data);
+        console.log(' Payment verified successfully:', data);
         
         setSuccessfulSubscription(data.subscription);
         setPaymentSuccess(true);
         
         // Show success message
-        toast.success(`🎉 Successfully subscribed to ${plan.plan_name} plan!`);
+        toast.success(` Successfully subscribed to ${plan.plan_name} plan!`);
         
         // Clear stored order ID
         localStorage.removeItem(`order_${plan.id}`);
@@ -307,14 +307,14 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
         }, 2000);
         
       } else {
-        console.error('❌ Payment verification failed:', data);
+        console.error('  Payment verification failed:', data);
         toast.error(data.error || 'Payment verification failed');
         
         // Clear stored order ID on failure
         localStorage.removeItem(`order_${plan.id}`);
       }
     } catch (error) {
-      console.error('❌ Payment verification error:', error);
+      console.error('  Payment verification error:', error);
       toast.error('Payment verification failed');
       
       // Clear stored order ID on error
@@ -326,7 +326,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
 
   const redirectToDashboard = () => {
     setIsRedirecting(true);
-    console.log('🚀 Redirecting to dashboard...');
+    console.log(' Redirecting to dashboard...');
     
     // Use React Router navigation instead of window.location
     navigate('/dashboard');
@@ -468,7 +468,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
           <button
             onClick={() => initiatePayment(plan)}
             disabled={isProcessing}
-            className={`w-full py-3 rounded-xl font-bold transition-all duration-200 ${
+            className={`cursor-pointer w-full py-3 rounded-xl font-bold transition-all duration-200 ${
               isFeatured
                 ? 'bg-white text-purple-600 hover:bg-gray-100'
                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
@@ -502,7 +502,7 @@ const SubscriptionPlans = ({ user, onSubscriptionPurchased, onBackToDashboard })
           </div>
           
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Payment Successful! 🎉
+            Payment Successful! 
           </h2>
           
           <p className="text-gray-600 mb-6">

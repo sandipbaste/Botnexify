@@ -274,7 +274,7 @@ const Reports = () => {
       doc.setTextColor(51, 51, 51);
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text('👤 User Information', 14, yPos);
+      doc.text(' User Information', 14, yPos);
       yPos += 10;
       
       // User Info Table
@@ -304,7 +304,7 @@ const Reports = () => {
       if (userDetails?.stats) {
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        doc.text('📊 User Statistics', 14, yPos);
+        doc.text(' User Statistics', 14, yPos);
         yPos += 10;
         
         const statsData = [
@@ -733,7 +733,7 @@ const Reports = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-18">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -746,7 +746,7 @@ const Reports = () => {
           {/* Filter Toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2 border rounded-lg transition-colors flex items-center ${
+            className={`cursor-pointer px-4 py-2 border rounded-lg transition-colors flex items-center ${
               showFilters 
                 ? 'bg-purple-50 border-purple-300 text-purple-700' 
                 : 'border-gray-300 hover:bg-gray-50'
@@ -916,7 +916,7 @@ const Reports = () => {
             <select
               value={filters.role}
               onChange={(e) => setFilters({ ...filters, role: e.target.value })}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="cursor-pointer px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             >
               <option value="all">All Roles</option>
               <option value="admin">Admin Only</option>
@@ -927,7 +927,7 @@ const Reports = () => {
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="cursor-pointer px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             >
               <option value="all">All Status</option>
               <option value="active">Active Only</option>
@@ -938,7 +938,7 @@ const Reports = () => {
             <select
               value={filters.websites}
               onChange={(e) => setFilters({ ...filters, websites: e.target.value })}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="cursor-pointer px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             >
               <option value="all">All Websites</option>
               <option value="0">No Websites</option>
@@ -951,7 +951,7 @@ const Reports = () => {
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="cursor-pointer px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             >
               <option value="all">All Time</option>
               <option value="today">Today</option>
@@ -1124,7 +1124,7 @@ const Reports = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => handleViewUserDetails(user)}
-                      className="text-purple-600 hover:text-purple-900 mr-3"
+                      className="cursor-pointer text-purple-600 hover:text-purple-900 mr-3"
                       title="View Details"
                       type="button"
                     >
@@ -1191,7 +1191,7 @@ const Reports = () => {
                       <button
                         onClick={() => setShowExportOptions(!showExportOptions)}
                         disabled={isExporting || !selectedUser}
-                        className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="cursor-pointer px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         type="button"
                       >
                         {isExporting ? (
@@ -1201,7 +1201,7 @@ const Reports = () => {
                           </>
                         ) : (
                           <>
-                            <FaDownload className="text-sm" />
+                            <FaDownload className="text-sm cursor-pointer" />
                             <span>Export Data</span>
                           </>
                         )}
@@ -1417,14 +1417,14 @@ const Reports = () => {
                                       Website URL
                                     </label>
                                     {website.website_url ? (
-                                      <a 
-                                        href={website.website_url} 
+                                      <Link 
+                                        to={website.website_url} 
                                         target="_blank" 
                                         rel="noopener noreferrer"
                                         className="text-sm text-blue-600 hover:text-blue-800 hover:underline mt-1 block break-all"
                                       >
                                         {website.website_url}
-                                      </a>
+                                      </Link>
                                     ) : (
                                       <p className="text-sm text-gray-500 mt-1">N/A</p>
                                     )}
@@ -1481,7 +1481,7 @@ const Reports = () => {
                                       </pre>
                                     </div>
                                     <div className="mt-2 text-xs text-gray-400 flex items-center">
-                                      <span className="mr-2">📦</span>
+                                      <span className="mr-2"></span>
                                       Add to &lt;head&gt; section to embed chatbot
                                     </div>
                                   </div>

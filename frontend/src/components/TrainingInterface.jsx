@@ -250,7 +250,7 @@ const TrainingInterface = ({ onWebsiteTrained, onTrainingStart, onTrainingComple
                 };
                 
                 onWebsiteTrained(websiteObj);
-                toast.success('🎉 Chatbot trained successfully!');
+                toast.success(' Chatbot trained successfully!');
               }, 500);
               
             } else if (statusData.status === 'error') {
@@ -268,7 +268,7 @@ const TrainingInterface = ({ onWebsiteTrained, onTrainingStart, onTrainingComple
       
     } catch (error) {
       console.error('Training error:', error);
-      toast.error(error.message || 'Failed to start training');
+      toast.error("Chatbot limit reached");
       onTrainingComplete();
     }
   };
@@ -304,7 +304,7 @@ const TrainingInterface = ({ onWebsiteTrained, onTrainingStart, onTrainingComple
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Website Name (Optional)
+            Chatbot Name (Optional)
           </label>
           <input
             type="text"
@@ -337,7 +337,7 @@ const TrainingInterface = ({ onWebsiteTrained, onTrainingStart, onTrainingComple
         <button
           type="submit"
           disabled={isProcessing}
-          className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
+          className="w-full cursor-pointer px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {isProcessing ? 'Training in Progress...' : 'Start Training'}
         </button>
@@ -400,7 +400,7 @@ const TrainingInterface = ({ onWebsiteTrained, onTrainingStart, onTrainingComple
                     <span className={`text-sm font-medium ${
                       trainingComplete ? 'text-green-700' : 'text-blue-700'
                     }`}>
-                      {trainingComplete ? '✅ Training Complete!' : `Step ${currentStep} of 12 • ${currentStage}`}
+                      {trainingComplete ? ' Training Complete!' : `Step ${currentStep} of 12 • ${currentStage}`}
                     </span>
                   </div>
                 </div>

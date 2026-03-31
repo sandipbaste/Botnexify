@@ -1,95 +1,69 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  FaUpload, FaTrash, FaFilePdf, FaFileWord, FaFileExcel, 
-  FaFileImage, FaFileAlt, FaSpinner, FaSync, FaEye
-} from 'react-icons/fa';
+import React, { useRef, useState } from 'react';
+import { FaUpload, FaSpinner, FaSync } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const FileManager = ({ website, onUploadComplete }) => {
-  const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [reindexing, setReindexing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState('');
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [processingFiles, setProcessingFiles] = useState([]);
+  const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    if (website) {
-      loadFiles();
-    }
-  }, [website]);
-
-  const loadFiles = async () => {
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/api/website/${website.website_id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+  // Simulate progressive upload with phases
+  const simulateProgress = async (selectedFiles) => {
+    return new Promise((resolve) => {
+      let progress = 0;
+      const phases = [
+        { name: 'uploading', duration: 30, message: 'Uploading files..' },
+        { name: 'processing', duration: 40, message: 'Processing file content...' },
+        { name: 'embedding', duration: 30, message: 'Creating embeddings...' }
+      ];
       
-      if (response.ok) {
-        const data = await response.json();
+      let phaseIndex = 0;
+      let phaseProgress = 0;
+      
+      const interval = setInterval(() => {
+        if (phaseIndex >= phases.length) {
+          clearInterval(interval);
+          setUploadPhase('complete');
+          setUploadProgress(100);
+          setUploadStatus('Complete!');
+          setTimeout(resolve, 500);
+          return;
+        }
         
-        // Extract uploads from website data
-        const uploads = data.uploads_metadata || [];
-        const fileList = [];
+        const currentPhase = phases[phaseIndex];
+        setUploadPhase(currentPhase.name);
+        setUploadStatus(currentPhase.message);
         
-        // Process uploads metadata
-        uploads.forEach(upload => {
-          if (upload.saved_filename) {
-            fileList.push({
-              id: upload.saved_filename,
-              name: upload.original_filename || upload.saved_filename,
-              size: upload.size || 0,
-              type: getFileType(upload.saved_filename),
-              uploaded_at: upload.uploaded_at,
-              processed: upload.processed || false,
-              chunks: upload.chunks || 0,
-              path: upload.saved_path
-            });
-          }
-        });
+        phaseProgress += 1;
         
-        setFiles(fileList);
-      }
-    } catch (error) {
-      console.error('Error loading files:', error);
-      toast.error('Failed to load files');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getFileType = (filename) => {
-    const ext = filename.split('.').pop().toLowerCase();
-    if (['pdf'].includes(ext)) return 'pdf';
-    if (['doc', 'docx'].includes(ext)) return 'word';
-    if (['xls', 'xlsx', 'csv'].includes(ext)) return 'excel';
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(ext)) return 'image';
-    if (['txt', 'md'].includes(ext)) return 'text';
-    return 'other';
-  };
-
-  const getFileIcon = (type) => {
-    switch (type) {
-      case 'pdf': return <FaFilePdf className="text-red-500" />;
-      case 'word': return <FaFileWord className="text-blue-500" />;
-      case 'excel': return <FaFileExcel className="text-green-500" />;
-      case 'image': return <FaFileImage className="text-purple-500" />;
-      case 'text': return <FaFileAlt className="text-gray-500" />;
-      default: return <FaFileAlt className="text-gray-400" />;
-    }
+        const phaseStart = phases.slice(0, phaseIndex).reduce((sum, p) => sum + p.duration, 0);
+        const phaseCurrent = (phaseProgress / currentPhase.duration) * currentPhase.duration;
+        progress = Math.min(phaseStart + phaseCurrent, 100);
+        
+        setUploadProgress(Math.round(progress));
+        
+        if (phaseProgress >= currentPhase.duration) {
+          phaseIndex++;
+          phaseProgress = 0;
+        }
+      }, 100);
+    });
   };
 
   const handleFileUpload = async (event) => {
     const selectedFiles = Array.from(event.target.files);
     if (selectedFiles.length === 0) return;
 
+    setProcessingFiles(selectedFiles.map(f => f.name));
     setIsUploading(true);
     setUploadProgress(0);
+    setUploadPhase('uploading');
+    setUploadStatus('Starting upload...');
 
     try {
       const token = localStorage.getItem('access_token');
@@ -99,327 +73,195 @@ const FileManager = ({ website, onUploadComplete }) => {
         formData.append('files', file);
       });
 
+      const progressPromise = simulateProgress(selectedFiles);
+
       const xhr = new XMLHttpRequest();
       
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
-          const percentComplete = (e.loaded / e.total) * 100;
-          setUploadProgress(percentComplete);
+          const uploadPercent = (e.loaded / e.total) * 30;
+          setUploadProgress(Math.round(uploadPercent));
+          setUploadPhase('uploading');
+          setUploadStatus(`Uploading: ${Math.round((e.loaded / e.total) * 100)}%`);
         }
       });
 
-      xhr.addEventListener('load', async () => {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          
-          if (data.success) {
-            if (data.successful_uploads > 0) {
-              toast.success(`Uploaded ${data.successful_uploads} file(s) successfully!`);
+      const uploadPromise = new Promise((resolve, reject) => {
+        xhr.addEventListener('load', async () => {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            
+            if (data.success) {
+              if (data.successful_uploads > 0) {
+                await progressPromise;
+                toast.success(`Uploaded ${data.successful_uploads} file(s) successfully!`);
+              } else {
+                toast.error('No files were uploaded. Please try again.');
+              }
+              
+              if (onUploadComplete) onUploadComplete();
+              resolve();
             } else {
-              toast.error('No files were uploaded. Please try again.');
+              reject(new Error(data.message || 'Upload failed'));
             }
-            
-            await loadFiles(); // Refresh file list
-            if (onUploadComplete) onUploadComplete();
-            
-            // Auto-reindex if files were processed
-            if (data.successful_uploads > 0) {
-              toast.info('Files are being processed in the background...');
+          } catch (parseError) {
+            if (xhr.responseText.includes('success') || xhr.responseText.includes('Uploaded')) {
+              await progressPromise;
+              toast.success('File uploaded successfully!');
+              if (onUploadComplete) onUploadComplete();
+              resolve();
+            } else {
+              reject(new Error('Failed to process upload response'));
             }
-          } else {
-            toast.error(data.message || 'Upload failed');
           }
-        } catch (parseError) {
-          console.error('Parse error:', parseError);
-          // Check if response is plain text (not JSON)
-          if (xhr.responseText.includes('success') || xhr.responseText.includes('Uploaded')) {
-            toast.success('File uploaded successfully!');
-            await loadFiles();
-            if (onUploadComplete) onUploadComplete();
-          } else {
-            toast.error('Failed to process upload response');
-          }
-        } finally {
-          setIsUploading(false);
-          setUploadProgress(0);
-          // Clear file input
-          event.target.value = '';
-        }
-      });
+        });
 
-      xhr.addEventListener('error', () => {
-        toast.error('Network error during upload');
-        setIsUploading(false);
-        setUploadProgress(0);
-        event.target.value = '';
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload aborted'));
+        });
       });
 
       xhr.open('POST', `${API_URL}/api/upload/${website.website_id}`);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.send(formData);
 
+      await uploadPromise;
+
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error('Upload failed');
+      toast.error(error.message || 'Upload failed');
+    } finally {
       setIsUploading(false);
       setUploadProgress(0);
-      event.target.value = '';
-    }
-  };
-
-  const handleDeleteFile = async (filename) => {
-    if (!window.confirm(`Are you sure you want to delete "${filename}"?`)) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/api/delete-file/${website.website_id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ filename })
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success('File deleted successfully');
-        // Remove from local state
-        setFiles(prevFiles => prevFiles.filter(f => f.id !== filename));
-        if (onUploadComplete) onUploadComplete();
-        
-        // Refresh to ensure sync
-        await loadFiles();
-      } else {
-        throw new Error(data.message || 'Failed to delete file');
+      setUploadPhase('');
+      setUploadStatus('');
+      setProcessingFiles([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
-    } catch (error) {
-      toast.error(error.message || 'Failed to delete file');
     }
   };
 
-  const handleReindex = async () => {
-    setReindexing(true);
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_URL}/api/reindex/${website.website_id}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success('Reindexing completed successfully');
-        await loadFiles(); // Refresh file list
-      } else {
-        throw new Error(data.message || 'Reindexing failed');
-      }
-    } catch (error) {
-      toast.error(error.message || 'Reindexing failed');
-    } finally {
-      setReindexing(false);
+  const getPhaseColor = () => {
+    switch (uploadPhase) {
+      case 'uploading': return 'bg-blue-500';
+      case 'processing': return 'bg-yellow-500';
+      case 'embedding': return 'bg-purple-500';
+      case 'complete': return 'bg-green-500';
+      default: return 'bg-blue-500';
     }
-  };
-
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
   };
 
   return (
-    <div className="space-y-6">
-      {/* Website Info */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-200">
-        <div className="flex items-center justify-between mb-3">
+    <>
+      {/* Upload Overlay - Blocks UI when uploading */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="w-20 h-20 mx-auto mb-4 relative">
+                <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+                <div 
+                  className={`absolute inset-0 border-4 ${getPhaseColor()} rounded-full transition-all duration-300`}
+                  style={{ 
+                    clipPath: `inset(0 ${100 - uploadProgress}% 0 0)`,
+                    transform: 'rotate(90deg) scaleX(-1)'
+                  }}
+                ></div>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                <div 
+                  className={`${getPhaseColor()} h-3 rounded-full transition-all duration-300 relative`}
+                  style={{ width: `${uploadProgress}%` }}
+                >
+                  <span className="absolute -right-8 -top-6 text-sm font-medium text-gray-700">
+                    {uploadProgress}%
+                  </span>
+                </div>
+              </div>
+              
+              {/* Files being processed */}
+              {processingFiles.length > 0 && (
+                <div className="mt-4 text-left">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Processing:</p>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {processingFiles.map((fileName, index) => (
+                      <div key={index} className="flex items-center space-x-2 text-sm">
+                        <FaSpinner className="animate-spin text-blue-500 text-xs" />
+                        <span className="text-gray-600 truncate">{fileName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-gray-500 mt-4">
+                Please don't close this window or navigate away
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Upload Section */}
+      <div className={`space-y-6 ${isUploading ? 'pointer-events-none opacity-50' : ''}`}>
+        {/* Website Info */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-200">
           <div>
             <h3 className="font-semibold text-gray-900 text-lg">{website.website_name}</h3>
             <p className="text-sm text-gray-600">ID: {website.website_id.substring(0, 12)}...</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleReindex}
-              disabled={reindexing || files.length === 0}
-              className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 disabled:opacity-50"
-            >
-              <FaSync className={reindexing ? 'animate-spin' : ''} />
-              <span>{reindexing ? 'Reindexing...' : 'Reindex Website'}</span>
-            </button>
-          </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Total Files</p>
-            <p className="font-medium text-blue-600">{files.length}</p>
-          </div>
-          <div>
-            <p className="text-gray-500">Processed Files</p>
-            <p className="font-medium text-green-600">{files.filter(f => f.processed).length}</p>
-          </div>
-          <div>
-            <p className="text-gray-500">Total Chunks</p>
-            <p className="font-medium text-purple-600">{files.reduce((sum, f) => sum + (f.chunks || 0), 0)}</p>
-          </div>
-          <div>
-            <p className="text-gray-500">Data Points</p>
-            <p className="font-medium text-indigo-600">{website.data_points || '0'}</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Upload Section */}
-      <div className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors">
-        <label className="cursor-pointer">
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-              <FaUpload className="text-blue-600 text-2xl" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload Files</h3>
-              <p className="text-gray-600 mb-4">
-                Upload PDF, Word, Excel, or text files to train your chatbot
+        {/* Upload Section */}
+        <div className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors">
+          <label className="cursor-pointer">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                <FaUpload className="text-blue-600 text-2xl" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload Files</h3>
+                <p className="text-gray-600 mb-4">
+                  Upload PDF, Word, Excel, or text files to train your chatbot
+                </p>
+              </div>
+              <div className="relative">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  disabled={isUploading}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.jpg,.jpeg,.png"
+                />
+                <div className={`px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  {isUploading ? 'Uploading...' : 'Choose Files'}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                Max file size: 50MB. Supported: PDF, DOC, XLS, TXT, Images
               </p>
             </div>
-            <div className="relative">
-              <input
-                type="file"
-                multiple
-                onChange={handleFileUpload}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                disabled={isUploading}
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.jpg,.jpeg,.png"
-              />
-              <div className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
-                {isUploading ? 'Uploading...' : 'Choose Files'}
-              </div>
-            </div>
-            <p className="text-xs text-gray-500">
-              Max file size: 50MB. Supported: PDF, DOC, XLS, TXT, Images
-            </p>
-          </div>
-        </label>
-        
-        {/* Upload Progress */}
-        {isUploading && (
-          <div className="mt-6">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Uploading...</span>
-              <span>{Math.round(uploadProgress)}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Files List */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">Uploaded Files ({files.length})</h3>
-          <button
-            onClick={loadFiles}
-            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center space-x-2"
-          >
-            <FaSync className={isLoading ? 'animate-spin' : ''} />
-            <span>Refresh</span>
-          </button>
+          </label>
         </div>
-        
-        {isLoading ? (
-          <div className="text-center py-8">
-            <FaSpinner className="animate-spin text-2xl text-blue-600 mx-auto mb-4" />
-            <p className="text-gray-600">Loading files...</p>
-          </div>
-        ) : files.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-gray-600 border-b">
-                  <th className="pb-3">File</th>
-                  <th className="pb-3">Size</th>
-                  <th className="pb-3">Type</th>
-                  <th className="pb-3">Status</th>
-                  <th className="pb-3">Uploaded</th>
-                  <th className="pb-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {files.map(file => (
-                  <tr key={file.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="text-xl">
-                          {getFileIcon(file.type)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900 truncate max-w-xs">{file.name}</p>
-                          <p className="text-xs text-gray-500">{file.id}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 text-gray-600">
-                      {formatFileSize(file.size)}
-                    </td>
-                    <td className="py-4">
-                      <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded capitalize">
-                        {file.type}
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        file.processed 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {file.processed ? `Processed (${file.chunks} chunks)` : 'Pending'}
-                      </span>
-                    </td>
-                    <td className="py-4 text-gray-600">
-                      {formatDate(file.uploaded_at)}
-                    </td>
-                    <td className="py-4">
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => handleDeleteFile(file.id)}
-                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <FaTrash />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FaFileAlt className="text-gray-400 text-2xl" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No files uploaded yet</h3>
-            <p className="text-gray-600">Upload your first file to train your chatbot</p>
-          </div>
-        )}
+
+        {/* Note about file management */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+          <p className="text-sm text-blue-700">
+            After uploading, your files will appear in the "Uploaded Files" section below.
+            You can preview, download, or delete files from there.
+          </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

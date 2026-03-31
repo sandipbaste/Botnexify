@@ -83,8 +83,8 @@ const Login = ({ onLogin, onSwitchToSignup, onForgotPassword, onClose }) => {
     console.error('Login error:', error);
     
     // Check for specific backend connection error
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      toast.error('Cannot connect to backend server. Please make sure it is running on port 8000.');
+    if (error.message.includes('Internal Server Error') || error.message.includes('NetworkError')) {
+      toast.error('Internal server error');
     } else {
       toast.error(error.message || 'Login failed. Please check your credentials.');
     }
@@ -134,7 +134,7 @@ const Login = ({ onLogin, onSwitchToSignup, onForgotPassword, onClose }) => {
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl p-2 rounded-full hover:bg-gray-100 transition-colors z-10"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer text-2xl p-2 rounded-full hover:bg-gray-100 transition-colors z-10"
               disabled={isLoading}
             >
               &times;
@@ -209,7 +209,7 @@ const Login = ({ onLogin, onSwitchToSignup, onForgotPassword, onClose }) => {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                       disabled={isLoading}
                     >
                       {showPassword ? <FaEyeSlash /> : <FaEye />}
@@ -224,7 +224,7 @@ const Login = ({ onLogin, onSwitchToSignup, onForgotPassword, onClose }) => {
                     <button
                       type="button"
                       onClick={onForgotPassword}
-                      className="text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium"
+                      className="text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium cursor-pointer"
                       disabled={isLoading}
                     >
                       Forgot password?
@@ -243,7 +243,7 @@ const Login = ({ onLogin, onSwitchToSignup, onForgotPassword, onClose }) => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg"
+                  className="w-full cursor-pointer py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg"
                 >
                   {isLoading ? (
                     <>
@@ -265,7 +265,7 @@ const Login = ({ onLogin, onSwitchToSignup, onForgotPassword, onClose }) => {
                     <button
                       type="button"
                       onClick={onSwitchToSignup}
-                      className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                      className="text-blue-600 hover:text-blue-800 font-medium transition-colors cursor-pointer"
                       disabled={isLoading}
                     >
                       Sign up here

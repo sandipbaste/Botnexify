@@ -344,7 +344,7 @@ const setupBeforeUnload = useCallback(() => {
           mode: 'no-cors' // For cross-origin requests
         });
         
-        console.log('📧 Auto-report sent (browser close)');
+        console.log(' Auto-report sent (browser close)');
       } catch (error) {
         console.error('Error sending auto-report:', error);
         
@@ -353,7 +353,7 @@ const setupBeforeUnload = useCallback(() => {
           const data = new FormData();
           data.append('session_id', sessionId);
           navigator.sendBeacon(`${apiUrl}/api/chat/auto-report`, data);
-          console.log('📧 Auto-report queued via Beacon API');
+          console.log(' Auto-report queued via Beacon API');
         } catch (beaconError) {
           console.error('Beacon API also failed:', beaconError);
         }

@@ -7,7 +7,7 @@ import {
   FaExclamationTriangle, FaEye, FaEyeSlash, FaCreditCard,
   FaCrown, FaDatabase, FaCloudUploadAlt, FaUserFriends,
   FaChartLine, FaPaperPlane, FaSave, FaTimes, FaSync,
-  FaKey, FaEnvelopeOpenText, FaLockOpen
+  FaKey, FaEnvelopeOpenText, FaLockOpen, FaArrowUp
 } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -23,7 +23,6 @@ const UserProfile = ({ user, onLogout }) => {
   const [userStats, setUserStats] = useState(null);
   const [userWebsites, setUserWebsites] = useState([]);
   const [subscription, setSubscription] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   
   // Forgot Password States
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -67,7 +66,6 @@ const UserProfile = ({ user, onLogout }) => {
       setResetEmail(user.email || '');
       loadUserData();
       loadSubscriptionData();
-      loadNotifications();
     }
   }, [user]);
 
@@ -150,19 +148,24 @@ const UserProfile = ({ user, onLogout }) => {
         const data = await response.json();
         if (data.success && data.has_subscription) {
           setSubscription(data.subscription);
+          // Store in localStorage for other components
+          localStorage.setItem('user_subscription', JSON.stringify(data.subscription));
+        } else {
+          // Check localStorage for cached subscription
+          const cachedSubscription = localStorage.getItem('user_subscription');
+          if (cachedSubscription) {
+            setSubscription(JSON.parse(cachedSubscription));
+          }
         }
       }
     } catch (error) {
       console.error('Error loading subscription:', error);
+      // Fallback to localStorage
+      const cachedSubscription = localStorage.getItem('user_subscription');
+      if (cachedSubscription) {
+        setSubscription(JSON.parse(cachedSubscription));
+      }
     }
-  };
-
-  const loadNotifications = () => {
-    setNotifications([
-      { id: 1, title: 'Training Complete', message: 'Your chatbot has been successfully trained', time: '2 hours ago', read: false },
-      { id: 2, title: 'Subscription Update', message: 'Your subscription will renew in 7 days', time: '1 day ago', read: false },
-      { id: 3, title: 'New Feature', message: 'File upload limit increased to 50MB', time: '3 days ago', read: true }
-    ]);
   };
 
   const handleInputChange = (e) => {
@@ -225,7 +228,7 @@ const UserProfile = ({ user, onLogout }) => {
     if (isLoading) return; 
     
     if (!validateProfileForm()) {
-      toast.error('Please fix the errors in the form');
+      toast.error('Enter Correct Credential');
       return;
     }
     
@@ -269,18 +272,17 @@ const UserProfile = ({ user, onLogout }) => {
     }
   };
 
-  // UPDATED LOGIC FOR INCORRECT CURRENT PASSWORD
   const handlePasswordChange = async (e) => {
     e?.preventDefault();
     if (isLoading) return;
     
     if (!validatePasswordForm()) {
-      toast.error('Please fix the errors in the form');
+      toast.error('Enter Correct Credential');
       return;
     }
     
     setIsLoading(true);
-    setErrors({}); // Clear previous errors
+    setErrors({});
     
     try {
       const token = localStorage.getItem('access_token');
@@ -309,7 +311,6 @@ const UserProfile = ({ user, onLogout }) => {
         }));
         setSuccessMessage('Your password has been changed');
       } else {
-        // Check if error is related to current password
         const errorMsg = data.message?.toLowerCase() || '';
         if (errorMsg.includes('current') || errorMsg.includes('incorrect') || errorMsg.includes('wrong') || errorMsg.includes('match')) {
           setErrors({ current_password: data.message || 'Current password is wrong' });
@@ -526,6 +527,7 @@ const UserProfile = ({ user, onLogout }) => {
     } else {
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
+      localStorage.removeItem('user_subscription');
       navigate('/login');
     }
     toast.success('Logged out successfully');
@@ -552,8 +554,6 @@ const UserProfile = ({ user, onLogout }) => {
     });
   };
 
-  const unreadNotifications = notifications.filter(n => !n.read).length;
-
   const handleModalOtpChange = (e) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 6);
     const newOtp = value.split('');
@@ -561,39 +561,18 @@ const UserProfile = ({ user, onLogout }) => {
     setOtp(newOtp);
   };
 
+  // Function to handle upgrade plan navigation
+  const handleUpgradePlan = () => {
+    navigate('/pricing');
+    toast.info('Choose Premium plan to upgrade and get 10 websites limit!');
+  };
+
+  // Determine if user is on Standard plan
+  const isOnStandardPlan = subscription && subscription.plan_name === 'Standard';
+  const isOnPremiumPlan = subscription && subscription.plan_name === 'Premium';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Header Section */}
-      <div className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                  <span className="text-2xl font-bold text-white">
-                    {user?.full_name?.charAt(0) || 'U'}
-                  </span>
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{user?.full_name || 'User Profile'}</h1>
-                <p className="text-gray-600">Member since {user?.created_at ? formatDate(user.created_at) : 'N/A'}</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 transition-colors flex items-center space-x-2"
-              >
-                <FaSignOutAlt />
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Profile Navigation Tabs */}
         <div className="bg-white rounded-2xl shadow-lg mb-6">
@@ -601,14 +580,13 @@ const UserProfile = ({ user, onLogout }) => {
             {[
               { id: 'profile', label: 'Profile', icon: <FaUser /> },
               { id: 'security', label: 'Security', icon: <FaLock /> },
-              { id: 'notifications', label: 'Notifications', icon: <FaBell />, badge: unreadNotifications },
               { id: 'subscription', label: 'Subscription', icon: <FaCrown /> },
               { id: 'stats', label: 'Statistics', icon: <FaChartLine /> }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative px-4 py-3 mx-1 flex items-center space-x-2 text-sm font-medium rounded-lg transition-all ${
+                className={`cursor-pointer relative px-4 py-3 mx-1 flex items-center space-x-2 text-sm font-medium rounded-lg transition-all ${
                   activeTab === tab.id
                     ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
                     : 'text-gray-600 hover:bg-gray-100'
@@ -616,15 +594,6 @@ const UserProfile = ({ user, onLogout }) => {
               >
                 {tab.icon}
                 <span>{tab.label}</span>
-                {tab.badge > 0 && (
-                  <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
-                    activeTab === tab.id
-                      ? 'bg-white text-blue-600'
-                      : 'bg-red-500 text-white'
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
               </button>
             ))}
           </nav>
@@ -807,25 +776,6 @@ const UserProfile = ({ user, onLogout }) => {
                 </h3>
                 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-blue-100">Account Status</span>
-                    <span className="px-3 py-1 bg-green-400 text-green-900 text-xs font-semibold rounded-full">
-                      Active
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-blue-100">Member Since</span>
-                    <span className="font-medium">
-                      {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-blue-100">Last Login</span>
-                    <span className="font-medium">Today</span>
-                  </div>
-                  
                   <div className="pt-4 border-t border-blue-400">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-blue-100">Websites</span>
@@ -849,25 +799,50 @@ const UserProfile = ({ user, onLogout }) => {
                 <div className="space-y-3">
                   <button
                     onClick={() => navigate('/dashboard?tab=train')}
-                    className="w-full px-4 py-3 bg-blue-50 text-blue-700 font-medium rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center space-x-2"
+                    className="cursor-pointer w-full px-4 py-3 bg-blue-50 text-blue-700 font-medium rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center space-x-2"
                   >
                     <FaRobot />
                     <span>Train New Chatbot</span>
                   </button>
                   <button
                     onClick={() => navigate('/dashboard?tab=uploads')}
-                    className="w-full px-4 py-3 bg-green-50 text-green-700 font-medium rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center space-x-2"
+                    className="cursor-pointer w-full px-4 py-3 bg-green-50 text-green-700 font-medium rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center space-x-2"
                   >
                     <FaCloudUploadAlt />
                     <span>Upload Files</span>
                   </button>
-                  <button
-                    onClick={() => navigate('/pricing')}
-                    className="w-full px-4 py-3 bg-purple-50 text-purple-700 font-medium rounded-lg hover:bg-purple-100 transition-colors flex items-center justify-center space-x-2"
-                  >
-                    <FaCrown />
-                    <span>Upgrade Plan</span>
-                  </button>
+                  
+                  {/* SHOW UPGRADE BUTTON ONLY FOR STANDARD PLAN USERS */}
+                  {isOnStandardPlan && (
+                    <button
+                      onClick={handleUpgradePlan}
+                      className="cursor-pointer w-full px-4 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md"
+                    >
+                      <FaArrowUp className="animate-pulse" />
+                      <span>Upgrade to Premium</span>
+                      <FaCrown className="text-yellow-200" />
+                    </button>
+                  )}
+                  
+                  {/* NO UPGRADE BUTTON FOR PREMIUM USERS - Just show plan info */}
+                  {isOnPremiumPlan && (
+                    <div className="w-full px-4 py-3 bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 font-medium rounded-lg flex items-center justify-center space-x-2 border border-purple-200">
+                      <FaCrown className="text-yellow-600" />
+                      <span>Premium Plan Active</span>
+                      <FaCheckCircle className="text-green-600" />
+                    </div>
+                  )}
+                  
+                  {/* Show subscribe button if no subscription */}
+                  {!subscription && (
+                    <button
+                      onClick={() => navigate('/pricing')}
+                      className="cursor-pointer w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center space-x-2"
+                    >
+                      <FaCrown />
+                      <span>Subscribe Now</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -888,7 +863,6 @@ const UserProfile = ({ user, onLogout }) => {
                 Change Password
               </h2>
 
-              {/* Only show top-level errors if it's NOT a field-specific error */}
               {errors.password && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
                   <FaExclamationTriangle className="mr-2" />
@@ -984,7 +958,7 @@ const UserProfile = ({ user, onLogout }) => {
                     <button
                       type="submit"
                       disabled={isLoading}
-                      className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                      className="cursor-pointer w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                       {isLoading ? (
                         <>
@@ -1052,69 +1026,13 @@ const UserProfile = ({ user, onLogout }) => {
                 </p>
                 <button
                   onClick={handleOpenForgotPassword}
-                  className="w-full px-4 py-3 bg-blue-50 text-blue-700 font-medium rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center space-x-2"
+                  className="cursor-pointer w-full px-4 py-3 bg-blue-50 text-blue-700 font-medium rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center space-x-2"
                 >
                   <FaLockOpen />
-                  <span>Reset Password with OTP</span>
+                  <span>Reset Password</span>
                 </button>
               </div>
             </div>
-          </motion.div>
-        )}
-
-        {/* Notifications Tab Content */}
-        {activeTab === 'notifications' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-lg p-6"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center">
-                <FaBell className="mr-2 text-blue-600" />
-                Notifications
-              </h2>
-              {unreadNotifications > 0 && (
-                <button className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
-                  Mark all as read
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              {notifications.map(notification => (
-                <div
-                  key={notification.id}
-                  className={`p-4 rounded-lg border ${
-                    notification.read
-                      ? 'bg-white border-gray-200'
-                      : 'bg-blue-50 border-blue-200'
-                  } hover:shadow-md transition-shadow cursor-pointer`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className={`font-semibold ${
-                      notification.read ? 'text-gray-700' : 'text-gray-900'
-                    }`}>
-                      {notification.title}
-                    </h3>
-                    {!notification.read && (
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
-                  <p className="text-xs text-gray-500">{notification.time}</p>
-                </div>
-              ))}
-            </div>
-
-            {notifications.length === 0 && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaBell className="text-gray-400 text-2xl" />
-                </div>
-                <p className="text-gray-600">No notifications</p>
-              </div>
-            )}
           </motion.div>
         )}
 
@@ -1158,12 +1076,17 @@ const UserProfile = ({ user, onLogout }) => {
                         <p className="text-2xl font-bold text-gray-900">
                           {userWebsites.length} / {subscription.max_websites || '∞'}
                         </p>
+                        {isOnStandardPlan && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            Upgrade to Premium to get 10 websites limit
+                          </p>
+                        )}
                       </div>
                       <div className="p-4 bg-green-50 rounded-lg">
                         <FaComments className="text-green-600 text-xl mb-2" />
                         <p className="text-sm text-gray-600">Chat Messages</p>
                         <p className="text-2xl font-bold text-gray-900">
-                          {userStats?.chat_messages || 0} / {subscription.max_chat_messages || '∞'}
+                          {userStats?.chat_messages || 0} / {subscription.max_chat_messages?.toLocaleString() || '∞'}
                         </p>
                       </div>
                       <div className="p-4 bg-purple-50 rounded-lg">
@@ -1175,14 +1098,35 @@ const UserProfile = ({ user, onLogout }) => {
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-gray-200">
-                      <button
-                        onClick={() => navigate('/pricing')}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200"
-                      >
-                        Upgrade Plan
-                      </button>
-                    </div>
+                    {/* Upgrade button in subscription tab ONLY for Standard plan users */}
+                    {isOnStandardPlan && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <button
+                          onClick={handleUpgradePlan}
+                          className="w-full px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-medium rounded-xl hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md"
+                        >
+                          <FaArrowUp />
+                          <span>Upgrade to Premium Plan</span>
+                          <FaCrown />
+                        </button>
+                        <p className="text-sm text-gray-500 text-center mt-3">
+                          Premium plan gives you 10 websites (up from 6), 20,000 chat messages, and priority support
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Show premium plan message without upgrade button */}
+                    {isOnPremiumPlan && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 text-center">
+                          <FaCrown className="text-yellow-600 text-2xl mx-auto mb-2" />
+                          <p className="text-purple-800 font-medium">You're on the Premium Plan!</p>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Enjoy 10 websites, 20,000 chat messages, and priority support
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12">
@@ -1319,7 +1263,7 @@ const UserProfile = ({ user, onLogout }) => {
                     </p>
                     {user?.email && (
                       <p className="mt-2 text-xs text-green-600">
-                        ✓ Using your registered email: {user.email}
+                        Using your registered email: {user.email}
                       </p>
                     )}
                   </div>
@@ -1437,7 +1381,6 @@ const UserProfile = ({ user, onLogout }) => {
               {forgotPasswordStep === 'reset' && (
                 <form onSubmit={handleResetPassword}>
                   <div className="space-y-4 mb-6">
-                    {/* New Password Field */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         New Password
@@ -1470,7 +1413,6 @@ const UserProfile = ({ user, onLogout }) => {
                       </p>
                     </div>
                     
-                    {/* Confirm Password Field */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Confirm New Password
@@ -1499,7 +1441,6 @@ const UserProfile = ({ user, onLogout }) => {
                       </div>
                     </div>
                     
-                    {/* Password strength indicator */}
                     {newPassword && (
                       <div className="p-3 bg-gray-50 rounded-lg">
                         <p className="text-xs font-medium text-gray-700 mb-2">Password strength:</p>
@@ -1521,7 +1462,7 @@ const UserProfile = ({ user, onLogout }) => {
                             ? `Need ${6 - newPassword.length} more characters`
                             : newPassword !== confirmNewPassword
                             ? 'Passwords do not match'
-                            : '✓ Strong enough password'}
+                            : 'Strong enough password'}
                         </p>
                       </div>
                     )}

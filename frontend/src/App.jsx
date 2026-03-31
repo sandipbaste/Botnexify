@@ -11,7 +11,6 @@ import UserDashboard from './components/UserDashboard';
 import AdminPanel from './components/AdminPanel';
 import HomePage from './components/HomePage';
 import UserProfile from './components/UserProfile';
-import UserSettings from './components/UserSettings';
 import SubscriptionPlans from './components/Payment/SubscriptionPlans';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -108,12 +107,6 @@ function App() {
   const verifyToken = async (token) => {
     try {
       console.log('Verifying token...');
-      
-      // First test backend connection
-      const connectionTest = await fetch(`${API_URL}/health`);
-      if (!connectionTest.ok) {
-        throw new Error('Backend server is not running');
-      }
       
       const response = await fetch(`${API_URL}/api/auth/me`, {
         headers: {
@@ -232,24 +225,22 @@ function App() {
   };
 
   useEffect(() => {
-    const checkBackend = async () => {
-      try {
-        const response = await fetch(`${API_URL}/health`);
-        if (response.ok) {
-          setBackendStatus('connected');
-        } else {
-          setBackendStatus('disconnected');
-        }
-      } catch (error) {
-        setBackendStatus('disconnected');
-      }
-    };
+  // Only check once when app loads
+  const checkBackendOnce = async () => {
+    try {
+      const response = await fetch(`${API_URL}/health`);
+      setBackendStatus(response.ok ? 'connected' : 'disconnected');
+    } catch (error) {
+      setBackendStatus('disconnected');
+      // Only show error toast if it's critical
+      console.log('Backend connection issue');
+    }
+  };
 
-    checkBackend();
-    // Check every 10 seconds
-    const interval = setInterval(checkBackend, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  checkBackendOnce();
+  
+  // NO INTERVAL - Remove the interval completely
+}, []);
 
   const handleLogin = async (userData) => {
     console.log('Login successful, user data:', userData);
@@ -574,24 +565,6 @@ function App() {
             user ? (
               user.role === 'admin' || subscriptionStatus.hasSubscription ? (
                 <UserProfile user={user} />
-              ) : user.role === 'user' ? (
-                <Navigate to="/pricing" />
-              ) : (
-                <Navigate to="/" />
-              )
-            ) : (
-              <Navigate to="/" />
-            )
-          } 
-        />
-        
-        {/* Settings Routes - Requires subscription for users, admin can access */}
-        <Route 
-          path="/settings" 
-          element={
-            user ? (
-              user.role === 'admin' || subscriptionStatus.hasSubscription ? (
-                <UserSettings user={user} />
               ) : user.role === 'user' ? (
                 <Navigate to="/pricing" />
               ) : (

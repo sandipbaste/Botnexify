@@ -3,9 +3,8 @@
 import os
 import json
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from psycopg2 import Error
 import sys
 import uuid
 import shutil
@@ -23,33 +22,34 @@ from fastapi import Depends, Security
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from psycopg2.extras import RealDictCursor
 import aiofiles
 import asyncio
+from psycopg2 import Error
+from psycopg2.extras import RealDictCursor
 
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import handlers
-from src.website_loader import WebsiteLoader
-from src.file_processor import FileProcessor
-from src.embedding_handler import EmbeddingHandler
-from src.chatbot_generator import ChatbotGenerator
-from src.agents import ChatAgent
-from src.database import db_manager
-from src.email_service import email_service
-from src.pdf_generator import pdf_generator
-from src.auth import auth_service
-from src.payment_service import payment_service
-from src.addAdmin import CreateAdminRequest, GenerateHashRequest, admin_service
-from src.admin_auth import admin_auth_service
-from src.token_counter import token_counter
-from src.vector_store import VectorStore
+from app.vectoredb.website_loader import WebsiteLoader
+from app.file_processor import FileProcessor
+from app.vectoredb.embedding_handler import EmbeddingHandler
+from app.chatbot_generator import ChatbotGenerator
+from app.agents.agents import ChatAgent
+from app.database.database import db_manager
+from app.services.email_service import email_service
+from app.pdf_generator import pdf_generator
+from app.auth.auth import auth_service
+from app.services.payment_service import payment_service
+from app.auth.addAdmin import CreateAdminRequest, GenerateHashRequest, admin_service
+from app.auth.admin_auth import admin_auth_service
+from app.tokens.token_counter import token_counter
+from app.vectoredb.vector_store import VectorStore
 
 load_dotenv()
 security = HTTPBearer()
 
-BACKEND_URL = os.getenv("BASE_URL").rstrip('/')
+BACKEND_URL = os.getenv("BACKEND_URL").rstrip('/')
 
 app = FastAPI(
     title="Chatbot Generator API",
@@ -78,6 +78,14 @@ app.add_middleware(
 # Mount static files
 os.makedirs("generated_scripts", exist_ok=True)
 app.mount("/scripts", StaticFiles(directory="generated_scripts"), name="scripts")
+
+# Mount static files for data directory
+os.makedirs("data", exist_ok=True)
+app.mount("/data", StaticFiles(directory="data"), name="data")
+
+# Also mount uploads directory explicitly if needed
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 admin_service.initialize_admin_tables()
 
@@ -191,34 +199,18 @@ class PaymentService:
         
     def check_user_access(self, user_id: int, action: str = "train") -> Dict[str, Any]:
         """Check if user can perform an action based on subscription"""
-        conn = None
-        cursor = None
         try:
             conn = self.get_connection()
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
-            # First check if user exists and get their role
-            cursor.execute("SELECT role, is_active FROM users WHERE id = %s", (user_id,))
+            # First check if user is admin
+            cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
             user = cursor.fetchone()
             
-            if not user:
-                return {
-                    "success": False,
-                    "has_access": False,
-                    "error": "User not found",
-                    "message": "User does not exist"
-                }
-            
-            if not user['is_active']:
-                return {
-                    "success": False,
-                    "has_access": False,
-                    "error": "User inactive",
-                    "message": "User account is inactive"
-                }
-            
-            # Check if user is admin
-            if user.get('role') == 'admin':
+            if user and user['role'] == 'admin':
+                # Admin has unlimited access
+                cursor.close()
+                conn.close()
                 return {
                     "success": True,
                     "has_access": True,
@@ -229,19 +221,86 @@ class PaymentService:
             
             # For regular users, check subscription
             cursor.execute('''
-                SELECT 
-                    us.*, 
-                    sp.plan_name, 
-                    sp.max_websites, 
-                    sp.max_chat_messages, 
-                    sp.max_uploads,
-                    sp.features
+                SELECT us.*, sp.plan_name, sp.max_websites, sp.max_chat_messages, sp.max_uploads
                 FROM user_subscriptions us
                 JOIN subscription_plans sp ON us.plan_id = sp.id
                 WHERE us.user_id = %s 
                 AND us.payment_status = 'completed'
-                AND us.subscription_status = 'active'
-                AND (us.end_date IS NULL OR us.end_date > CURRENT_TIMESTAMP)
+                AND (us.end_date IS NULL OR us.end_date > CURRENT_DATE)
+                ORDER BY us.end_date DESC
+                LIMIT 1
+            ''', (user_id,))
+            
+            subscription = cursor.fetchone()
+            
+            cursor.close()
+            conn.close()
+            
+            if subscription:
+                # User has active subscription
+                return {
+                    "success": True,
+                    "has_access": True,
+                    "has_subscription": True,
+                    "subscription": subscription,
+                    "message": "Active subscription found"
+                }
+            else:
+                # User doesn't have subscription
+                return {
+                    "success": True,
+                    "has_access": False,
+                    "has_subscription": False,
+                    "message": "No active subscription found",
+                    "requires_subscription": True
+                }
+                
+        except Error as e:
+            print(f"  Check user access error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "has_access": False
+            }
+    
+    def get_user_subscription(self, user_id: int) -> Dict[str, Any]:
+        """Get user's active subscription"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # First check if user is admin
+            cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+            user = cursor.fetchone()
+            
+            if user and user['role'] == 'admin':
+                # Return admin subscription info
+                cursor.close()
+                conn.close()
+                return {
+                    "success": True,
+                    "has_subscription": True,
+                    "is_admin": True,
+                    "subscription": {
+                        "plan_name": "Admin",
+                        "max_websites": 999,
+                        "max_chat_messages": 999999,
+                        "max_uploads": 999,
+                        "is_admin": True,
+                        "days_remaining": 999
+                    }
+                }
+            
+            # For regular users, check actual subscription
+            cursor.execute('''
+                SELECT us.*, sp.plan_name, sp.price, sp.duration_days,
+                       sp.max_websites, sp.max_chat_messages, sp.max_uploads,
+                       sp.features
+                FROM user_subscriptions us
+                JOIN subscription_plans sp ON us.plan_id = sp.id
+                WHERE us.user_id = %s 
+                AND us.payment_status = 'completed'
+                AND (us.end_date IS NULL OR us.end_date > CURRENT_DATE)
                 ORDER BY us.end_date DESC
                 LIMIT 1
             ''', (user_id,))
@@ -249,333 +308,32 @@ class PaymentService:
             subscription = cursor.fetchone()
             
             if subscription:
-                # Check action-specific limits if needed
-                access_info = {
-                    "success": True,
-                    "has_access": True,
-                    "has_subscription": True,
-                    "subscription": subscription,
-                    "message": "Active subscription found"
-                }
-                
-                # Add action-specific limit checks
-                if action == "train":
-                    # Check if user has reached website limit
-                    cursor.execute(
-                        "SELECT COUNT(*) as count FROM websites WHERE user_id = %s",
-                        (user_id,)
-                    )
-                    website_count = cursor.fetchone()['count']
-                    
-                    if website_count >= subscription['max_websites']:
-                        access_info["has_access"] = False
-                        access_info["message"] = f"Website limit reached ({subscription['max_websites']})"
-                        access_info["limit_reached"] = "websites"
-                        access_info["current_count"] = website_count
-                        access_info["max_allowed"] = subscription['max_websites']
-                
-                elif action == "chat":
-                    # Check monthly chat message limit
-                    cursor.execute('''
-                        SELECT COUNT(*) as count 
-                        FROM chat_history ch
-                        JOIN websites w ON ch.website_id = w.website_id
-                        WHERE w.user_id = %s 
-                        AND ch.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
-                    ''', (user_id,))
-                    chat_count = cursor.fetchone()['count']
-                    
-                    if chat_count >= subscription['max_chat_messages']:
-                        access_info["has_access"] = False
-                        access_info["message"] = f"Monthly chat message limit reached ({subscription['max_chat_messages']})"
-                        access_info["limit_reached"] = "chat_messages"
-                        access_info["current_count"] = chat_count
-                        access_info["max_allowed"] = subscription['max_chat_messages']
-                
-                elif action == "upload":
-                    # Check file upload limit
-                    cursor.execute('''
-                        SELECT COUNT(*) as count 
-                        FROM website_files wf
-                        JOIN websites w ON wf.website_id = w.website_id
-                        WHERE w.user_id = %s
-                    ''', (user_id,))
-                    upload_count = cursor.fetchone()['count']
-                    
-                    if upload_count >= subscription['max_uploads']:
-                        access_info["has_access"] = False
-                        access_info["message"] = f"File upload limit reached ({subscription['max_uploads']})"
-                        access_info["limit_reached"] = "uploads"
-                        access_info["current_count"] = upload_count
-                        access_info["max_allowed"] = subscription['max_uploads']
-                
-                return access_info
-            else:
-                # Check if user has ever had a subscription
-                cursor.execute('''
-                    SELECT COUNT(*) as count 
-                    FROM user_subscriptions 
-                    WHERE user_id = %s
-                ''', (user_id,))
-                had_subscription = cursor.fetchone()['count'] > 0
-                
-                if had_subscription:
-                    return {
-                        "success": True,
-                        "has_access": False,
-                        "has_subscription": False,
-                        "message": "Subscription expired",
-                        "requires_subscription": True,
-                        "expired": True
-                    }
-                else:
-                    return {
-                        "success": True,
-                        "has_access": False,
-                        "has_subscription": False,
-                        "message": "No active subscription found",
-                        "requires_subscription": True,
-                        "new_user": True
-                    }
-            
-        except Exception as e:
-            print(f"❌ Check user access error: {e}")
-            import traceback
-            traceback.print_exc()
-            return {
-                "success": False,
-                "error": str(e),
-                "has_access": False,
-                "message": "Error checking user access"
-            }
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                self.return_connection(conn)
-    
-    def get_user_subscription(self, user_id: int) -> Dict[str, Any]:
-        """Get user's active subscription"""
-        conn = None
-        cursor = None
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            # First check if user exists
-            cursor.execute("SELECT role, is_active FROM users WHERE id = %s", (user_id,))
-            user = cursor.fetchone()
-            
-            if not user:
-                return {
-                    "success": False,
-                    "has_subscription": False,
-                    "error": "User not found",
-                    "message": f"User with ID {user_id} does not exist"
-                }
-            
-            if not user['is_active']:
-                return {
-                    "success": False,
-                    "has_subscription": False,
-                    "error": "User inactive",
-                    "message": "User account is inactive"
-                }
-            
-            # Check if user is admin
-            if user.get('role') == 'admin':
-                # Return admin subscription info
-                return {
-                    "success": True,
-                    "has_subscription": True,
-                    "is_admin": True,
-                    "subscription": {
-                        "plan_name": "Admin Plan",
-                        "plan_description": "Unlimited admin access",
-                        "max_websites": 999999,
-                        "max_chat_messages": 999999,
-                        "max_uploads": 999999,
-                        "is_admin": True,
-                        "days_remaining": 9999,
-                        "features": json.dumps([
-                            "Unlimited websites",
-                            "Unlimited chat messages",
-                            "Unlimited file uploads",
-                            "Full admin access",
-                            "All features enabled"
-                        ])
-                    }
-                }
-            
-            # For regular users, check actual subscription
-            cursor.execute('''
-                SELECT 
-                    us.*, 
-                    sp.plan_name, 
-                    sp.plan_description,
-                    sp.price, 
-                    sp.currency,
-                    sp.duration_days,
-                    sp.max_websites, 
-                    sp.max_chat_messages, 
-                    sp.max_uploads,
-                    sp.features
-                FROM user_subscriptions us
-                JOIN subscription_plans sp ON us.plan_id = sp.id
-                WHERE us.user_id = %s 
-                AND us.payment_status = 'completed'
-                AND us.subscription_status = 'active'
-                AND (us.end_date IS NULL OR us.end_date > CURRENT_TIMESTAMP)
-                ORDER BY us.end_date DESC NULLS LAST, us.created_at DESC
-                LIMIT 1
-            ''', (user_id,))
-            
-            subscription = cursor.fetchone()
-            
-            if subscription:
-                # Parse features if it's a string
-                if subscription.get('features') and isinstance(subscription['features'], str):
-                    try:
-                        subscription['features'] = json.loads(subscription['features'])
-                    except:
-                        pass
-                
                 # Calculate days remaining
                 if subscription.get('end_date'):
                     end_date = subscription['end_date']
                     if isinstance(end_date, str):
-                        try:
-                            from dateutil import parser
-                            end_date = parser.parse(end_date)
-                        except:
-                            # Fallback to datetime.fromisoformat if dateutil not available
-                            end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-                    
-                    # Ensure end_date is timezone-aware for comparison
-                    if end_date.tzinfo is None:
-                        from datetime import timezone
-                        end_date = end_date.replace(tzinfo=timezone.utc)
-                    
-                    now = datetime.now(timezone.utc)
-                    days_remaining = (end_date - now).days
+                        end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                    days_remaining = (end_date - datetime.now()).days
                     subscription['days_remaining'] = max(0, days_remaining)
-                    
-                    # Calculate percentage of time used
-                    if subscription.get('start_date'):
-                        start_date = subscription['start_date']
-                        if isinstance(start_date, str):
-                            try:
-                                start_date = parser.parse(start_date)
-                            except:
-                                start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-                        
-                        if start_date.tzinfo is None:
-                            start_date = start_date.replace(tzinfo=timezone.utc)
-                        
-                        total_days = subscription.get('duration_days', 30)
-                        if total_days > 0:
-                            days_used = (now - start_date).days
-                            subscription['percent_used'] = min(100, round((days_used / total_days) * 100))
-                        else:
-                            subscription['percent_used'] = 0
                 else:
-                    subscription['days_remaining'] = 9999  # For lifetime subscriptions
-                    subscription['percent_used'] = 0
-                
-                # Add subscription status info
-                subscription['is_active'] = True
-                subscription['can_renew'] = subscription['days_remaining'] <= 7
-                
-                # Get usage statistics
-                cursor.execute('''
-                    SELECT 
-                        (SELECT COUNT(*) FROM websites WHERE user_id = %s) as website_count,
-                        (SELECT COUNT(*) FROM website_files wf
-                        JOIN websites w ON wf.website_id = w.website_id
-                        WHERE w.user_id = %s) as file_count
-                ''', (user_id, user_id))
-                usage = cursor.fetchone()
-                
-                if usage:
-                    subscription['current_websites'] = usage['website_count']
-                    subscription['current_files'] = usage['file_count']
-                    
-                    # Calculate monthly chat usage
-                    cursor.execute('''
-                        SELECT COUNT(*) as chat_count
-                        FROM chat_history ch
-                        JOIN websites w ON ch.website_id = w.website_id
-                        WHERE w.user_id = %s 
-                        AND ch.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)
-                    ''', (user_id,))
-                    chat_usage = cursor.fetchone()
-                    subscription['current_chat_messages'] = chat_usage['chat_count'] if chat_usage else 0
-                
-                return {
-                    "success": True,
-                    "has_subscription": True,
-                    "subscription": subscription
-                }
-            else:
-                # Check if user has any subscription history
-                cursor.execute('''
-                    SELECT 
-                        COUNT(*) as total,
-                        MAX(created_at) as last_subscription_date,
-                        MAX(end_date) as last_end_date
-                    FROM user_subscriptions 
-                    WHERE user_id = %s
-                ''', (user_id,))
-                history = cursor.fetchone()
-                
-                has_history = history and history['total'] > 0
-                
-                if has_history:
-                    # Check if there's a pending subscription
-                    cursor.execute('''
-                        SELECT COUNT(*) as count
-                        FROM user_subscriptions 
-                        WHERE user_id = %s 
-                        AND payment_status = 'pending'
-                    ''', (user_id,))
-                    pending = cursor.fetchone()
-                    has_pending = pending and pending['count'] > 0
-                    
-                    return {
-                        "success": True,
-                        "has_subscription": False,
-                        "has_history": True,
-                        "has_pending": has_pending,
-                        "message": "No active subscription found",
-                        "last_subscription_date": history['last_subscription_date'],
-                        "last_end_date": history['last_end_date'],
-                        "requires_subscription": True
-                    }
-                else:
-                    return {
-                        "success": True,
-                        "has_subscription": False,
-                        "has_history": False,
-                        "message": "User has no subscription history",
-                        "requires_subscription": True,
-                        "new_user": True
-                    }
+                    subscription['days_remaining'] = 999
             
-        except Exception as e:
-            print(f"❌ Get user subscription error: {e}")
-            import traceback
-            traceback.print_exc()
+            cursor.close()
+            conn.close()
+            
+            return {
+                "success": True,
+                "has_subscription": subscription is not None,
+                "subscription": subscription
+            }
+            
+        except Error as e:
+            print(f"  Get user subscription error: {e}")
             return {
                 "success": False,
                 "error": str(e),
-                "has_subscription": False,
-                "message": "Error retrieving subscription information"
+                "has_subscription": False
             }
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                self.return_connection(conn)
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -601,6 +359,7 @@ os.makedirs("data", exist_ok=True)
 os.makedirs("generated_scripts", exist_ok=True)
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("user_sessions", exist_ok=True)
+
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     """Get current user from JWT token (checks both users and admins)"""
@@ -647,7 +406,7 @@ def save_session_data(session_id: str, session_data: Dict[str, Any]):
         with open(session_file, 'w', encoding='utf-8') as f:
             json.dump(session_data, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"❌ Error saving session data: {e}")
+        print(f"  Error saving session data: {e}")
 
 def load_session_data(session_id: str) -> Optional[Dict[str, Any]]:
     """Load session data from file"""
@@ -657,7 +416,7 @@ def load_session_data(session_id: str) -> Optional[Dict[str, Any]]:
             with open(session_file, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"❌ Error loading session data: {e}")
+            print(f"  Error loading session data: {e}")
     return None
 
 def delete_session_data(session_id: str):
@@ -667,7 +426,7 @@ def delete_session_data(session_id: str):
         try:
             os.remove(session_file)
         except Exception as e:
-            print(f"❌ Error deleting session data: {e}")
+            print(f"  Error deleting session data: {e}")
 
 def cleanup_old_sessions(hours: int = 24):
     """Clean up session files older than specified hours"""
@@ -679,19 +438,19 @@ def cleanup_old_sessions(hours: int = 24):
                 file_time = datetime.fromtimestamp(os.path.getmtime(filepath))
                 if file_time < cutoff_time:
                     os.remove(filepath)
-                    print(f"🗑️ Cleaned up old session: {filename}")
+                    print(f" Cleaned up old session: {filename}")
     except Exception as e:
-        print(f"❌ Error cleaning up old sessions: {e}")
+        print(f"  Error cleaning up old sessions: {e}")
 
 def send_auto_report_in_background(session_id: str):
     """Background task to send auto-report"""
     try:
-        print(f"📧 Background auto-report for session: {session_id}")
+        print(f" Background auto-report for session: {session_id}")
         
         # Get session data
         session_file = os.path.join(session_storage_dir, f"{session_id}.json")
         if not os.path.exists(session_file):
-            print(f"⚠️ Session file not found: {session_id}")
+            print(f" Session file not found: {session_id}")
             return
         
         with open(session_file, 'r', encoding='utf-8') as f:
@@ -702,7 +461,7 @@ def send_auto_report_in_background(session_id: str):
         conversation_id = user_info.get("conversation_id")
         
         if not website_id or not conversation_id:
-            print(f"⚠️ Missing website/conversation ID for session: {session_id}")
+            print(f" Missing website/conversation ID for session: {session_id}")
             return
         
         # Get chat history
@@ -713,7 +472,7 @@ def send_auto_report_in_background(session_id: str):
         )
         
         if len(chat_history) < 2:
-            print(f"⚠️ Insufficient chat history for session: {session_id}")
+            print(f" Insufficient chat history for session: {session_id}")
             return
         
         # Get website info
@@ -742,7 +501,7 @@ def send_auto_report_in_background(session_id: str):
                 is_auto_report=True
             )
             
-            print(f"✅ Auto-report email sent for session: {session_id}")
+            print(f" Auto-report email sent for session: {session_id}")
         
         # Clean up session file
         try:
@@ -751,7 +510,7 @@ def send_auto_report_in_background(session_id: str):
             pass
             
     except Exception as e:
-        print(f"❌ Background auto-report error: {e}")
+        print(f"  Background auto-report error: {e}")
 
 
 def auto_send_chat_report(session_id: str):
@@ -794,7 +553,7 @@ def auto_send_chat_report(session_id: str):
                             is_auto_report=True
                         )
                         
-                        print(f"📧 Auto-sent chat report for session: {session_id}")
+                        print(f" Auto-sent chat report for session: {session_id}")
                         
                         # Save auto-report event
                         system_message_data = {
@@ -850,7 +609,7 @@ def auto_send_chat_report(session_id: str):
                 is_auto_report=True
             )
             
-            print(f"📧 Auto-sent chat report for session: {session_id}")
+            print(f" Auto-sent chat report for session: {session_id}")
             
             # Save auto-report event
             system_message_data = {
@@ -872,7 +631,7 @@ def auto_send_chat_report(session_id: str):
         delete_session_data(session_id)
         
     except Exception as e:
-        print(f"❌ Auto-send chat report error: {e}")
+        print(f"  Auto-send chat report error: {e}")
 
 # Run cleanup on startup
 cleanup_old_sessions()
@@ -887,14 +646,13 @@ async def root():
     """Root endpoint with API info"""
     return {
         "success": True,
-        "message": "🤖 Chatbot Generator API v3.0",
+        "message": " Chatbot Generator API v3.0",
         "version": "3.0.0",
         "status": "running",
         "database": "MySQL",
         "email": "Enabled",
         "timestamp": datetime.now().isoformat(),
         "endpoints": {
-            "/api/register-website": "Register new website (POST)",
             "/api/contact": "Submit contact form (POST)",
             "/api/train": "Train chatbot on website URL (POST)",
             "/api/chat": "Chat with trained chatbot (POST)",
@@ -912,7 +670,6 @@ async def root():
             "/api/contact/forms/{id}": "Get contact forms (GET)",
             "/ws/chat/{session_id}": "WebSocket for chat session tracking",
             "/embed/{id}/script.js": "Get chatbot script (GET)",
-            "/demo/{id}": "Demo page for chatbot (GET)",
             "/test/{id}": "Test page with embedded chatbot (GET)",
             "/api/auth/register": "User registration (POST)",
             "/api/auth/login": "User login (POST)",
@@ -968,85 +725,6 @@ async def health_check():
 # WEBSITE MANAGEMENT ROUTES
 # ======================
 
-@app.post("/api/register-website")
-async def register_website(request: WebsiteRegistration):
-    """Register a new website with admin email"""
-    try:
-        # Create website directory
-        website_dir = os.path.join("data", request.website_id)
-        os.makedirs(website_dir, exist_ok=True)
-        
-        # Create uploads directory
-        upload_dir = os.path.join(website_dir, "uploads")
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        # Create website .env file
-        env_content = f"""ADMIN_EMAIL={request.admin_email}
-CONTACT_EMAIL={request.admin_email}
-GEMINI_API_KEY={os.getenv('GEMINI_API_KEY', '')}  # Use global API key
-SMTP_HOST={os.getenv('SMTP_HOST', 'smtp.gmail.com')}
-SMTP_PORT={os.getenv('SMTP_PORT', '587')}
-SMTP_USERNAME={os.getenv('SMTP_USERNAME', '')}
-SMTP_PASSWORD={os.getenv('SMTP_PASSWORD', '')}
-"""
-        
-        env_path = os.path.join(website_dir, ".env")
-        with open(env_path, 'w') as f:
-            f.write(env_content)
-        
-        # Save to database
-        website_data = {
-            'website_id': request.website_id,
-            'website_name': request.website_name,
-            'website_url': request.website_url,
-            'admin_email': request.admin_email,
-            'contact_email': request.admin_email,
-            'data_directory': website_dir,
-            'status': 'active'
-        }
-        
-        result = db_manager.save_website(website_data)
-        
-        # Send confirmation email to admin
-        email_service.send_email(
-            to_email=request.admin_email,
-            subject=f"Website {request.website_name} Registered Successfully",
-            body=f"""Your website {request.website_name} has been registered with Chatbot Generator.
-
-Website URL: {request.website_url}
-Website ID: {request.website_id}
-
-You will receive:
-1. Contact form submissions
-2. Chat history reports (including auto-reports when users close browser)
-3. Training notifications
-
-Login to the admin panel at: {BACKEND_URL}/demo/{request.website_id}
-""",
-            website_id=request.website_id
-        )
-        
-        return {
-            "success": True,
-            "message": "Website registered successfully",
-            "website_id": request.website_id,
-            "website_name": request.website_name,
-            "admin_email": request.admin_email,
-            "env_file": env_path,
-            "data_directory": website_dir,
-            "admin_panel_url": f"{BACKEND_URL}/demo/{request.website_id}"
-        }
-        
-    except Exception as e:
-        print(f"❌ Website registration error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "success": False,
-                "error": "Registration failed",
-                "message": str(e)
-            }
-        )
 
 @app.post("/api/register")
 async def register_user(request: UserRegistration):
@@ -1119,7 +797,7 @@ async def register_user(request: UserRegistration):
         }
         
     except Exception as e:
-        print(f"❌ User registration error: {str(e)}")
+        print(f"  User registration error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -1158,7 +836,7 @@ async def get_user_info(website_id: str, session_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Get user info error: {str(e)}")
+        print(f"  Get user info error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -1168,19 +846,6 @@ async def get_user_info(website_id: str, session_id: str):
             }
         )
 
-@app.get("/api/user/notifications")
-async def get_user_notifications(user: dict = Depends(get_current_user)):
-    """Get user notifications"""
-    try:
-        # For now, return empty notifications
-        return {
-            "success": True,
-            "notifications": [],
-            "unread_count": 0
-        }
-    except Exception as e:
-        print(f"❌ Get notifications error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/websites")
 async def list_websites():
@@ -1261,7 +926,7 @@ async def list_websites():
         }
         
     except Exception as e:
-        print(f"❌ List websites error: {str(e)}")
+        print(f"  List websites error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -1347,7 +1012,7 @@ async def get_website_info(website_id: str):
         }
         
     except Exception as e:
-        print(f"❌ Get website info error: {str(e)}")
+        print(f"  Get website info error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -1356,6 +1021,44 @@ async def get_website_info(website_id: str):
                 "message": str(e)
             }
         )
+
+@app.get("/api/download-file/{website_id}")
+async def download_file(
+    website_id: str,
+    filename: str,
+    user: dict = Depends(get_current_user)
+):
+    """Download a file from website uploads"""
+    try:
+        # Security check - verify user owns this website
+        website = db_manager.get_website(website_id)
+        if not website or website.get('user_id') != user['id']:
+            raise HTTPException(
+                status_code=403,
+                detail="You don't have permission to access this file"
+            )
+        
+        # Construct file path
+        file_path = os.path.join("data", website_id, "uploads", filename)
+        
+        if not os.path.exists(file_path):
+            raise HTTPException(
+                status_code=404,
+                detail="File not found"
+            )
+        
+        # Return file
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type='application/octet-stream'
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Download error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/website/stats/{website_id}")
 async def get_website_statistics(website_id: str):
@@ -1373,7 +1076,7 @@ async def get_website_statistics(website_id: str):
             "recent_training_logs": training_logs
         }
     except Exception as e:
-        print(f"❌ Get stats error: {e}")
+        print(f"  Get stats error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1423,11 +1126,7 @@ async def train_chatbot(
             raise HTTPException(
                 status_code=403,
                 detail={
-                    "success": False,
-                    "error": "Website limit reached",
-                    "message": f"You have reached the maximum websites allowed ({subscription_result['subscription']['max_websites']}) for your plan",
-                    "current_count": website_count,
-                    "max_allowed": subscription_result['subscription']['max_websites']
+                    "error": "Chatbot limit reached"
                 }
             )
         
@@ -1511,7 +1210,7 @@ SMTP_PASSWORD={os.getenv('SMTP_PASSWORD', '')}
         with open(env_path, 'w') as f:
             f.write(env_content)
         
-        print(f"🚀 Starting training for: {request.website_url} (ID: {website_id}, User: {user['id']}, Contact: {request.contact_email})")
+        print(f" Starting training for: {request.website_url} (ID: {website_id}, User: {user['id']}, Contact: {request.contact_email})")
         
         # Save to database with user_id
         website_data = {
@@ -1559,7 +1258,7 @@ SMTP_PASSWORD={os.getenv('SMTP_PASSWORD', '')}
         }
         
     except Exception as e:
-        print(f"❌ Training initialization error: {str(e)}")
+        print(f"  Training initialization error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -1570,10 +1269,12 @@ SMTP_PASSWORD={os.getenv('SMTP_PASSWORD', '')}
             }
         )
 
+
+
 def train_website_background(website_id: str, url: str, website_name: str, contact_email: str, should_generate_script: bool, user_id: int):
     """Background task for website training with progressive updates"""
     try:
-        print(f"🎯 Background training started for {website_id} (User: {user_id})")
+        print(f" Background training started for {website_id} (User: {user_id})")
         
         # Track start time
         start_time = datetime.now()
@@ -1597,7 +1298,7 @@ def train_website_background(website_id: str, url: str, website_name: str, conta
         })
         
         # Step 1: Extract website data (progress 8% to 40%)
-        print(f"🔍 Extracting data from: {url}")
+        print(f" Extracting data from: {url}")
         
         training_status[website_id].update({
             "status": "extracting",
@@ -1639,11 +1340,11 @@ def train_website_background(website_id: str, url: str, website_name: str, conta
                 "updated_at": datetime.now().isoformat()
             })
             
-            print(f"✅ Successfully extracted {pages_extracted} pages")
+            print(f" Successfully extracted {pages_extracted} pages")
             
         except Exception as e:
             error_msg = f"Failed to extract website content: {str(e)}"
-            print(f"❌ {error_msg}")
+            print(f"  {error_msg}")
             
             elapsed_time = (datetime.now() - start_time).total_seconds()
             
@@ -1733,7 +1434,7 @@ def train_website_background(website_id: str, url: str, website_name: str, conta
                 "updated_at": datetime.now().isoformat()
             })
             
-            print(f"✅ Created embeddings: {pages_extracted} chunks")
+            print(f" Created embeddings: {pages_extracted} chunks")
             
         except Exception as e:
             error_msg = "Internal server Error"
@@ -1793,10 +1494,10 @@ def train_website_background(website_id: str, url: str, website_name: str, conta
                 }
                 
                 db_manager.update_website_script(website_id, embed_code)
-                print(f"✅ Generated chatbot script: {script_url}")
+                print(f" Generated chatbot script: {script_url}")
                 
             except Exception as e:
-                print(f"⚠️ Script generation warning: {e}")
+                print(f" Script generation warning: {e}")
                 script_data = {
                     "script_generated": False,
                     "script_error": str(e)
@@ -1841,23 +1542,28 @@ def train_website_background(website_id: str, url: str, website_name: str, conta
             'training_time': total_training_time
         })
         
-        db_manager.save_website({
-            'website_id': website_id,
-            'website_name': website_name,
-            'website_url': url,
-            'admin_email': contact_email,
-            'contact_email': contact_email,
-            'script_tag': script_data.get('embed_code', ''),
-            'status': 'active',
-            'user_id': user_id
-        })
+        if user_id:
+            auth_service.add_website_to_user(user_id, website_id)
+            
+            db_manager.save_website({
+                'website_id': website_id,
+                'website_name': website_name,
+                'website_url': url,
+                'admin_email': contact_email,
+                'contact_email': contact_email,
+                'script_tag': script_data.get('embed_code', ''),
+                'status': 'active',
+                'user_id': user_id
+            })
+            
+            print(f" Website {website_id} associated with user {user_id}")
         
-        print(f"🎉 Training completed for: {website_name} (ID: {website_id})")
-        print(f"   📊 Pages extracted: {pages_extracted}")
-        print(f"   ⏱️  Training time: {total_training_time:.2f} seconds")
+        print(f" Training completed for: {website_name} (ID: {website_id})")
+        print(f"      Pages extracted: {pages_extracted}")
+        print(f"     Training time: {total_training_time:.2f} seconds")
         
     except Exception as e:
-        print(f"❌ Background training error: {str(e)}")
+        print(f"  Background training error: {str(e)}")
         import traceback
         traceback.print_exc()
         
@@ -1873,6 +1579,420 @@ def train_website_background(website_id: str, url: str, website_name: str, conta
             "completed_at": datetime.now().isoformat(),
             "training_time": elapsed_time
         }
+
+
+@app.get("/api/debug/user-websites/{user_id}")
+async def debug_user_websites(user_id: int, admin: dict = Depends(get_current_admin)):
+    """Debug endpoint to check user-website association"""
+    try:
+        conn = auth_service.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Get user's website_ids
+        cursor.execute("SELECT id, email, full_name, website_ids FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        
+        # Get all websites
+        cursor.execute("SELECT * FROM websites ORDER BY created_at DESC")
+        all_websites = cursor.fetchall()
+        
+        # Get user's websites based on website_ids
+        user_websites = []
+        if user and user['website_ids']:
+            try:
+                website_ids = json.loads(user['website_ids']) if isinstance(user['website_ids'], str) else user['website_ids']
+                for website in all_websites:
+                    if website['website_id'] in website_ids:
+                        user_websites.append(website)
+            except:
+                pass
+        
+        # Get websites by user_id column
+        cursor.execute("SELECT * FROM websites WHERE user_id = %s", (user_id,))
+        websites_by_user_id = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "user": user,
+            "all_websites_count": len(all_websites),
+            "all_websites": [{"website_id": w['website_id'], "website_name": w['website_name'], "user_id": w['user_id']} for w in all_websites],
+            "user_websites_by_ids": [{"website_id": w['website_id'], "website_name": w['website_name']} for w in user_websites],
+            "user_websites_by_user_id": [{"website_id": w['website_id'], "website_name": w['website_name']} for w in websites_by_user_id],
+            "recommendation": "If both lists are empty, the website was not properly associated with the user during training"
+        }
+        
+    except Exception as e:
+        print(f"Debug error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ======================
+# CHAT HISTORY ROUTES FOR ADMIN
+# ======================
+
+@app.get("/api/chat-users/{website_id}")
+async def get_chat_users(
+    website_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Get all unique users who have chatted with this website"""
+    try:
+        # Check if user is admin or owns the website
+        conn = db_manager.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Verify website exists
+        cursor.execute(
+            "SELECT * FROM websites WHERE website_id = %s",
+            (website_id,)
+        )
+        website = cursor.fetchone()
+        
+        if not website:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "success": False,
+                    "error": "Website not found"
+                }
+            )
+
+        # Get unique users with their chat statistics
+        cursor.execute('''
+            SELECT 
+                user_email as email,
+                MAX(user_name) as name,
+                COUNT(*) as message_count,
+                MAX(created_at) as last_message_date
+            FROM chat_history 
+            WHERE website_id = %s 
+                AND user_email IS NOT NULL 
+                AND user_email != ''
+            GROUP BY user_email
+            ORDER BY last_message_date DESC
+        ''', (website_id,))
+        
+        users = cursor.fetchall()
+        
+        # Format the results
+        formatted_users = []
+        for user_data in users:
+            formatted_users.append({
+                'email': user_data['email'],
+                'name': user_data['name'] or 'Anonymous User',
+                'message_count': user_data['message_count'],
+                'last_message_date': user_data['last_message_date'].isoformat() if user_data['last_message_date'] else None
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "users": formatted_users,
+            "count": len(formatted_users)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting chat users: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "success": False,
+                "error": "Internal server error",
+                "message": str(e)
+            }
+        )
+
+@app.get("/api/user-chat/{website_id}")
+async def get_user_chat_messages(
+    website_id: str,
+    email: str,
+    user: dict = Depends(get_current_user)
+):
+    """Get all chat messages for a specific user email"""
+    try:
+        if not email:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "error": "Email parameter required"
+                }
+            )
+
+        # Verify website exists
+        conn = db_manager.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            "SELECT * FROM websites WHERE website_id = %s",
+            (website_id,)
+        )
+        website = cursor.fetchone()
+        
+        if not website:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "success": False,
+                    "error": "Website not found"
+                }
+            )
+
+        # Get all messages for this user
+        cursor.execute('''
+            SELECT * FROM chat_history 
+            WHERE website_id = %s 
+                AND user_email = %s
+            ORDER BY created_at ASC
+        ''', (website_id, email))
+        
+        messages = cursor.fetchall()
+        
+        # Format messages
+        formatted_messages = []
+        for msg in messages:
+            formatted_messages.append({
+                'id': msg['id'],
+                'role': msg['role'],
+                'message': msg['message'],
+                'created_at': msg['created_at'].isoformat() if msg['created_at'] else None,
+                'user_name': msg.get('user_name'),
+                'user_email': msg.get('user_email'),
+                'conversation_id': msg.get('conversation_id')
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "messages": formatted_messages,
+            "count": len(formatted_messages),
+            "user_email": email,
+            "website_id": website_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting user chat messages: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "success": False,
+                "error": "Internal server error",
+                "message": str(e)
+            }
+        )
+
+# Optional: Add a route to get all conversations for a website
+@app.get("/api/chat-conversations/{website_id}")
+async def get_chat_conversations(
+    website_id: str,
+    user: dict = Depends(get_current_user),
+    limit: int = 50
+):
+    """Get all conversations with summary for a website"""
+    try:
+        # Verify website belongs to user
+        conn = db_manager.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            "SELECT * FROM websites WHERE website_id = %s AND user_id = %s",
+            (website_id, user['id'])
+        )
+        website = cursor.fetchone()
+        
+        if not website:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "success": False,
+                    "error": "Website not found",
+                    "message": "Website not found or you don't have permission to access it"
+                }
+            )
+
+        # Get all conversations with their stats
+        cursor.execute('''
+            SELECT 
+                conversation_id,
+                MIN(created_at) as started_at,
+                MAX(created_at) as last_message_at,
+                COUNT(*) as message_count,
+                MAX(user_name) as user_name,
+                MAX(user_email) as user_email,
+                SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) as user_messages,
+                SUM(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) as assistant_messages
+            FROM chat_history 
+            WHERE website_id = %s
+            GROUP BY conversation_id
+            ORDER BY last_message_at DESC
+            LIMIT %s
+        ''', (website_id, limit))
+        
+        conversations = cursor.fetchall()
+        
+        # Format conversations
+        formatted_conversations = []
+        for conv in conversations:
+            formatted_conversations.append({
+                'conversation_id': conv['conversation_id'],
+                'started_at': conv['started_at'].isoformat() if conv['started_at'] else None,
+                'last_message_at': conv['last_message_at'].isoformat() if conv['last_message_at'] else None,
+                'message_count': conv['message_count'],
+                'user_name': conv['user_name'] or 'Anonymous',
+                'user_email': conv['user_email'] or 'No email provided',
+                'user_messages': conv['user_messages'],
+                'assistant_messages': conv['assistant_messages']
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "conversations": formatted_conversations,
+            "count": len(formatted_conversations),
+            "website_id": website_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting chat conversations: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "success": False,
+                "error": "Internal server error",
+                "message": str(e)
+            }
+        )
+
+# Route to get detailed conversation by conversation_id
+@app.get("/api/chat-conversation/{conversation_id}")
+async def get_conversation_details(
+    conversation_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Get all messages for a specific conversation"""
+    try:
+        conn = db_manager.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # First, get the website_id from the conversation
+        cursor.execute('''
+            SELECT DISTINCT website_id 
+            FROM chat_history 
+            WHERE conversation_id = %s
+        ''', (conversation_id,))
+        
+        result = cursor.fetchone()
+        if not result:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "success": False,
+                    "error": "Conversation not found"
+                }
+            )
+        
+        website_id = result['website_id']
+        
+        # Verify user owns this website
+        cursor.execute(
+            "SELECT * FROM websites WHERE website_id = %s AND user_id = %s",
+            (website_id, user['id'])
+        )
+        website = cursor.fetchone()
+        
+        if not website:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "success": False,
+                    "error": "Permission denied",
+                    "message": "You don't have permission to view this conversation"
+                }
+            )
+        
+        # Get all messages for this conversation
+        cursor.execute('''
+            SELECT * FROM chat_history 
+            WHERE conversation_id = %s
+            ORDER BY created_at ASC
+        ''', (conversation_id,))
+        
+        messages = cursor.fetchall()
+        
+        # Format messages
+        formatted_messages = []
+        for msg in messages:
+            formatted_messages.append({
+                'id': msg['id'],
+                'role': msg['role'],
+                'message': msg['message'],
+                'created_at': msg['created_at'].isoformat() if msg['created_at'] else None,
+                'user_name': msg.get('user_name'),
+                'user_email': msg.get('user_email')
+            })
+        
+        # Get conversation summary
+        user_info = {}
+        if formatted_messages:
+            for msg in formatted_messages:
+                if msg.get('user_name') and msg.get('user_email'):
+                    user_info = {
+                        'name': msg['user_name'],
+                        'email': msg['user_email']
+                    }
+                    break
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "website_id": website_id,
+            "messages": formatted_messages,
+            "message_count": len(formatted_messages),
+            "user_info": user_info,
+            "started_at": formatted_messages[0]['created_at'] if formatted_messages else None,
+            "last_message_at": formatted_messages[-1]['created_at'] if formatted_messages else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting conversation details: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "success": False,
+                "error": "Internal server error",
+                "message": str(e)
+            }
+        )
 
 @app.get("/api/training-status/{website_id}")
 async def get_training_status(website_id: str):
@@ -1941,7 +2061,7 @@ async def get_training_status(website_id: str):
         }
         
     except Exception as e:
-        print(f"❌ Training status error: {str(e)}")
+        print(f"  Training status error: {str(e)}")
         return {
             "success": False,
             "error": "Internal server error",
@@ -1951,7 +2071,7 @@ async def get_training_status(website_id: str):
 
 @app.delete("/api/website/{website_id}")
 async def delete_website(website_id: str, user: dict = Depends(get_current_user)):
-    """Delete a trained website"""
+    """Delete a trained website and all associated data including Qdrant embeddings"""
     try:
         # Check if website exists and user owns it
         website = db_manager.get_website(website_id)
@@ -1976,44 +2096,87 @@ async def delete_website(website_id: str, user: dict = Depends(get_current_user)
                 }
             )
         
+        # STEP 1: Delete embeddings from Qdrant Cloud
+        try:
+            from app.vectoredb.embedding_handler import EmbeddingHandler
+            embedding_handler = EmbeddingHandler()
+            
+            # Delete website embeddings from Qdrant
+            qdrant_deleted = embedding_handler.delete_website_embeddings(website_id)
+            if qdrant_deleted:
+                print(f" Successfully deleted Qdrant embeddings for website: {website_id}")
+            else:
+                print(f" Warning: Could not delete Qdrant embeddings for website: {website_id}")
+                
+        except Exception as e:
+            print(f"  Error deleting Qdrant embeddings: {e}")
+            # Continue with deletion even if Qdrant fails
+        
+        # STEP 2: Delete from database (cascading delete will remove all related records)
+        try:
+            conn = db_manager.get_connection()
+            cursor = conn.cursor()
+            
+            # Delete from websites table (cascade will handle chat_history, contact_forms, etc.)
+            cursor.execute("DELETE FROM websites WHERE website_id = %s", (website_id,))
+            deleted_rows = cursor.rowcount
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            if deleted_rows > 0:
+                print(f" Deleted website from database: {website_id}")
+            else:
+                print(f" Website not found in database: {website_id}")
+                
+        except Exception as db_error:
+            print(f"  Error deleting from database: {db_error}")
+            # Continue with file deletion even if database fails
+        
+        # STEP 3: Delete local files and directories
         website_dir = os.path.join("data", website_id)
+        if os.path.exists(website_dir):
+            try:
+                shutil.rmtree(website_dir)
+                print(f" Deleted website directory: {website_dir}")
+            except Exception as dir_error:
+                print(f"  Error deleting website directory: {dir_error}")
         
-        if not os.path.exists(website_dir):
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "success": False,
-                    "error": "Website not found",
-                    "message": f"Website with ID {website_id} not found."
-                }
-            )
+        # STEP 4: Delete script file
+        script_file = os.path.join("generated_scripts", f"chatbot_{website_id}.js")
+        if os.path.exists(script_file):
+            try:
+                os.remove(script_file)
+                print(f" Deleted script file: {script_file}")
+            except Exception as script_error:
+                print(f"  Error deleting script file: {script_error}")
         
-        # Remove from training status
+        # STEP 5: Remove from training status
         if website_id in training_status:
             del training_status[website_id]
         
-        # Remove directory
-        shutil.rmtree(website_dir)
-        
-        # Remove script file
-        script_file = os.path.join("generated_scripts", f"chatbot_{website_id}.js")
-        if os.path.exists(script_file):
-            os.remove(script_file)
-        
-        # Remove website from user's website_ids
+        # STEP 6: Remove website from user's website_ids
         if user.get('role') != 'admin':
             auth_service.remove_website_from_user(user['id'], website_id)
         
         return {
             "success": True,
-            "message": f"Website {website_id} deleted successfully",
-            "website_id": website_id
+            "message": f"Website {website_id} and all associated data deleted successfully",
+            "website_id": website_id,
+            "deleted_from": {
+                "qdrant": True,
+                "database": True,
+                "filesystem": True
+            }
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Delete website error: {str(e)}")
+        print(f"  Delete website error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail={
@@ -2032,7 +2195,7 @@ async def delete_website(website_id: str, user: dict = Depends(get_current_user)
 async def chat_with_website(request: ChatRequest):
     """Chat with website chatbot - Qdrant Cloud only"""
     try:
-        print(f"💬 Chat request for website: {request.website_id}, "
+        print(f" Chat request for website: {request.website_id}, "
               f"question: {request.question[:50]}...")
         
         # Check if website exists in database
@@ -2050,7 +2213,7 @@ async def chat_with_website(request: ChatRequest):
         
         # Check for embeddings in Qdrant Cloud
         try:
-            from src.embedding_handler import EmbeddingHandler
+            from app.vectoredb.embedding_handler import EmbeddingHandler
             embedding_handler = EmbeddingHandler()
             
             # Use the dedicated method to check embeddings
@@ -2066,16 +2229,16 @@ async def chat_with_website(request: ChatRequest):
                     }
                 )
             
-            print(f"✅ Verified embeddings in Qdrant Cloud for website: {request.website_id}")
+            print(f" Verified embeddings in Qdrant Cloud for website: {request.website_id}")
             
         except Exception as e:
-            print(f"❌ Error checking Qdrant: {e}")
+            print(f"  Error checking Qdrant: {e}")
             raise HTTPException(
                 status_code=500,
                 detail={
                     "success": False,
                     "error": "Qdrant connection failed",
-                    "message": f"Could not verify embeddings in Qdrant: {str(e)}"
+                    "message": f" {str(e)}"
                 }
             )
         
@@ -2105,11 +2268,11 @@ async def chat_with_website(request: ChatRequest):
             )
         except AttributeError as e:
             # If chat agent doesn't have chat method, fallback to simple response
-            print(f"⚠️ ChatAgent chat method error: {e}. Using fallback.")
+            print(f" ChatAgent chat method error: {e}. Using fallback.")
             
             # Try to search in Qdrant directly
             try:
-                from src.embedding_handler import EmbeddingHandler
+                from app.vectoredb.embedding_handler import EmbeddingHandler
                 handler = EmbeddingHandler()
                 
                 # Search for similar content
@@ -2127,7 +2290,7 @@ async def chat_with_website(request: ChatRequest):
                     response = "I'm your AI assistant. How can I help you today?"
                     
             except Exception as search_error:
-                print(f"⚠️ Direct search error: {search_error}")
+                print(f" Direct search error: {search_error}")
                 response = "I'm your AI assistant. How can I help you today? Please note that advanced chat features are currently being configured."
             
             # Save to database for fallback case
@@ -2171,7 +2334,7 @@ async def chat_with_website(request: ChatRequest):
             })
             save_session_data(request.session_id, session_data)
         
-        print(f"✅ Chat response generated ({len(response)} chars)")
+        print(f" Chat response generated ({len(response)} chars)")
         
         return {
             "success": True,
@@ -2186,7 +2349,7 @@ async def chat_with_website(request: ChatRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Chat error: {str(e)}")
+        print(f"  Chat error: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -2249,7 +2412,7 @@ async def submit_contact_form(request: ContactFormRequest):
         }
         
     except Exception as e:
-        print(f"❌ Contact form error: {str(e)}")
+        print(f"  Contact form error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -2260,10 +2423,24 @@ async def submit_contact_form(request: ContactFormRequest):
         )
 
 @app.get("/api/contact/forms/{website_id}")
-async def get_contact_forms(website_id: str, limit: int = 100):
+async def get_contact_forms(
+    website_id: str,
+    limit: int = 100,
+    user: dict = Depends(get_current_user)
+):
     """Get contact forms for a website"""
     try:
-        forms = db_manager.get_contact_forms(website_id, limit)
+        conn = db_manager.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            "SELECT * FROM contact_forms WHERE website_id = %s ORDER BY created_at DESC LIMIT %s",
+            (website_id, limit)
+        )
+        forms = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
         
         return {
             "success": True,
@@ -2272,7 +2449,7 @@ async def get_contact_forms(website_id: str, limit: int = 100):
             "count": len(forms)
         }
     except Exception as e:
-        print(f"❌ Get contact forms error: {e}")
+        print(f"Error getting contact forms: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/chat/history/{website_id}")
@@ -2292,7 +2469,7 @@ async def get_chat_history(website_id: str, conversation_id: Optional[str] = Non
             "count": len(history)
         }
     except Exception as e:
-        print(f"❌ Get chat history error: {e}")
+        print(f"  Get chat history error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/send-report")
@@ -2361,7 +2538,7 @@ async def send_chat_report(request: SendChatReportRequest):
         }
         
     except Exception as e:
-        print(f"❌ Send chat report error: {e}")
+        print(f"  Send chat report error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/end-session")
@@ -2479,7 +2656,7 @@ async def end_chat_session(request: EndSessionRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ End chat session error: {e}")
+        print(f"  End chat session error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -2493,7 +2670,7 @@ async def end_chat_session(request: EndSessionRequest):
 async def auto_report_chat_session(session_id: str = Form(...)):
     """Auto-report chat session when browser closes/refreshes"""
     try:
-        print(f"🔄 Auto-report triggered for session: {session_id}")
+        print(f" Auto-report triggered for session: {session_id}")
         
         # Load session data
         session_data = load_session_data(session_id)
@@ -2581,7 +2758,7 @@ async def auto_report_chat_session(session_id: str = Form(...)):
                 is_auto_report=True
             )
             
-            print(f"📧 Auto-sent chat report for session: {session_id}")
+            print(f" Auto-sent chat report for session: {session_id}")
             
             # Save auto-report event
             system_message_data = {
@@ -2611,7 +2788,7 @@ async def auto_report_chat_session(session_id: str = Form(...)):
         }
         
     except Exception as e:
-        print(f"❌ Auto-report error: {e}")
+        print(f"  Auto-report error: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse(
@@ -2646,15 +2823,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         data={"session_id": session_id}
                     )
                     if response.status_code == 200:
-                        print(f"📧 WebSocket auto-report successful for session: {session_id}")
+                        print(f" WebSocket auto-report successful for session: {session_id}")
                     else:
-                        print(f"⚠️ WebSocket auto-report failed: {response.status_code} - {response.text}")
+                        print(f" WebSocket auto-report failed: {response.status_code} - {response.text}")
                 except Exception as e:
-                    print(f"⚠️ WebSocket auto-report HTTP error: {e}")
+                    print(f" WebSocket auto-report HTTP error: {e}")
             
-            print(f"📧 Auto-report triggered for session: {session_id}")
+            print(f" Auto-report triggered for session: {session_id}")
         except Exception as e:
-            print(f"⚠️ Error in WebSocket auto-report: {e}")
+            print(f" Error in WebSocket auto-report: {e}")
 
 
 # ======================
@@ -2669,7 +2846,7 @@ async def upload_files(
 ):
     """Upload additional files to existing website"""
     try:
-        print(f"📤 Upload request for website: {website_id}, files: {[f.filename for f in files]}")
+        print(f" Upload request for website: {website_id}, files: {[f.filename for f in files]}")
         
         # Check if website exists
         website_dir = os.path.join("data", website_id)
@@ -2716,7 +2893,7 @@ async def upload_files(
                         json.dump(processed_content, f, ensure_ascii=False, indent=2)
                     
                 except Exception as e:
-                    print(f"⚠️ Error processing {file.filename}: {e}")
+                    print(f" Error processing {file.filename}: {e}")
                     processed = False
                     chunks = 0
                     failed_uploads += 1
@@ -2747,10 +2924,10 @@ async def upload_files(
                     "success": processed
                 })
                 
-                print(f"✅ Uploaded: {file.filename} -> {safe_filename} ({len(content)} bytes, processed: {processed})")
+                print(f" Uploaded: {file.filename} -> {safe_filename} ({len(content)} bytes, processed: {processed})")
                 
             except Exception as e:
-                print(f"❌ Error uploading {file.filename}: {e}")
+                print(f"  Error uploading {file.filename}: {e}")
                 failed_uploads += 1
                 uploaded_files.append({
                     "original_filename": file.filename,
@@ -2774,10 +2951,10 @@ async def upload_files(
             with open(uploads_meta, 'w', encoding='utf-8') as f:
                 json.dump(all_uploads, f, ensure_ascii=False, indent=2)
             
-            print(f"📝 Saved uploads metadata for {website_id}")
+            print(f"Saved uploads metadata for {website_id}")
             
         except Exception as e:
-            print(f"⚠️ Warning: Could not save uploads metadata: {e}")
+            print(f" Warning: Could not save uploads metadata: {e}")
         
         # Start background task to reindex embeddings with uploaded files
         if successful_uploads > 0 and background_tasks:
@@ -2803,7 +2980,7 @@ async def upload_files(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Upload error: {str(e)}")
+        print(f"  Upload error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -2816,19 +2993,19 @@ async def upload_files(
 async def reindex_with_uploads(website_id: str):
     """Reindex embeddings to include uploaded files"""
     try:
-        print(f"🔄 Starting reindex for website: {website_id}")
+        print(f" Starting reindex for website: {website_id}")
         
         website_dir = os.path.join("data", website_id)
         upload_dir = os.path.join(website_dir, "uploads")
         
         if not os.path.exists(upload_dir):
-            print(f"⚠️ No uploads directory for {website_id}")
+            print(f" No uploads directory for {website_id}")
             return
         
         # Load website data
         data_file = os.path.join(website_dir, "website_data.json")
         if not os.path.exists(data_file):
-            print(f"⚠️ No website data found for {website_id}")
+            print(f" No website data found for {website_id}")
             return
         
         with open(data_file, 'r', encoding='utf-8') as f:
@@ -2849,15 +3026,15 @@ async def reindex_with_uploads(website_id: str):
                     uploaded_docs = json.load(f)
                     all_documents.extend(uploaded_docs)
             except Exception as e:
-                print(f"⚠️ Error loading processed file {processed_file}: {e}")
+                print(f" Error loading processed file {processed_file}: {e}")
         
-        print(f"📊 Reindexing with {len(all_documents)} total documents "
+        print(f"   Reindexing with {len(all_documents)} total documents "
               f"({len(website_data)} website + {len(all_documents) - len(website_data)} uploaded)")
         
         # Create new embeddings with all documents
         embedding_info = embedding_handler.create_embeddings(website_id, all_documents)
         
-        print(f"✅ Reindex completed: {len(all_documents)} documents indexed")
+        print(f" Reindex completed: {len(all_documents)} documents indexed")
         
         # Update training info
         info_file = os.path.join(website_dir, "training_info.json")
@@ -2883,58 +3060,36 @@ async def reindex_with_uploads(website_id: str):
         return True
         
     except Exception as e:
-        print(f"❌ Reindex error: {str(e)}")
+        print(f"  Reindex error: {str(e)}")
         import traceback
         traceback.print_exc()
         return False
 
-@app.post("/api/reindex/{website_id}")
-async def reindex_website(website_id: str):
-    """Manually trigger reindexing of website with uploaded files"""
-    try:
-        # Check if website exists
-        website_dir = os.path.join("data", website_id)
-        if not os.path.exists(website_dir):
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "success": False,
-                    "error": "Website not found",
-                    "message": f"Website with ID {website_id} not found."
-                }
-            )
-        
-        # Start reindexing
-        success = await reindex_with_uploads(website_id)
-        
-        if success:
-            return {
-                "success": True,
-                "message": "Reindexing completed successfully",
-                "website_id": website_id
-            }
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "success": False,
-                    "error": "Reindexing failed",
-                    "message": "Could not reindex website"
-                }
-            )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Reindex error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "success": False,
-                "error": "Internal server error",
-                "message": str(e)
-            }
-        )
+# In your Flask/FastAPI backend
+@app.route('/api/preview-file/<website_id>', methods=['GET'])
+def preview_file(website_id):
+    filename = request.args.get('filename')
+    if not filename:
+        return jsonify({'success': False, 'message': 'Filename required'}), 400
+    
+    file_path = os.path.join(UPLOAD_FOLDER, website_id, 'uploads', filename)
+    
+    if not os.path.exists(file_path):
+        return jsonify({'success': False, 'message': 'File not found'}), 404
+    
+    # Check if it's a text file
+    ext = filename.split('.')[-1].lower()
+    text_extensions = ['txt', 'md', 'json', 'js', 'py', 'html', 'css', 'xml', 'csv']
+    
+    if ext in text_extensions:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return jsonify({'success': True, 'content': content})
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)}), 500
+    else:
+        return jsonify({'success': False, 'message': 'Not a text file'}), 400
 
 @app.get("/api/website-uploads/{website_id}")
 async def get_website_uploads(website_id: str):
@@ -2982,7 +3137,7 @@ async def get_website_uploads(website_id: str):
         }
         
     except Exception as e:
-        print(f"❌ Get uploads error: {str(e)}")
+        print(f"  Get uploads error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/delete-file/{website_id}")
@@ -3011,13 +3166,13 @@ async def delete_uploaded_file(website_id: str, request: Dict[str, Any]):
         file_path = os.path.join(upload_dir, filename)
         if os.path.exists(file_path):
             os.remove(file_path)
-            print(f"🗑️ Deleted file: {file_path}")
+            print(f" Deleted file: {file_path}")
         
         # Delete processed file if exists
         processed_file = os.path.join(upload_dir, f"{filename}_processed.json")
         if os.path.exists(processed_file):
             os.remove(processed_file)
-            print(f"🗑️ Deleted processed file: {processed_file}")
+            print(f" Deleted processed file: {processed_file}")
         
         # Delete from database
         try:
@@ -3036,12 +3191,12 @@ async def delete_uploaded_file(website_id: str, request: Dict[str, Any]):
             cursor.close()
             
             if deleted_rows == 0:
-                print(f"⚠️ File {filename} not found in database")
+                print(f" File {filename} not found in database")
             else:
-                print(f"🗑️ Deleted file {filename} from database")
+                print(f" Deleted file {filename} from database")
                 
         except Exception as db_error:
-            print(f"⚠️ Error deleting from database: {db_error}")
+            print(f" Error deleting from database: {db_error}")
             # Continue even if database deletion fails
         
         # Update metadata
@@ -3058,10 +3213,10 @@ async def delete_uploaded_file(website_id: str, request: Dict[str, Any]):
                 with open(uploads_meta, 'w') as f:
                     json.dump(uploads_data, f, indent=2)
                 
-                print(f"📝 Updated metadata: Removed {original_count - len(uploads_data)} entries")
+                print(f"Updated metadata: Removed {original_count - len(uploads_data)} entries")
                 
             except Exception as meta_error:
-                print(f"⚠️ Error updating metadata: {meta_error}")
+                print(f" Error updating metadata: {meta_error}")
         
         return {
             "success": True,
@@ -3073,7 +3228,7 @@ async def delete_uploaded_file(website_id: str, request: Dict[str, Any]):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Delete file error: {str(e)}")
+        print(f"  Delete file error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3092,7 +3247,7 @@ async def delete_uploaded_file(website_id: str, request: Dict[str, Any]):
 async def generate_script(website_id: str):
     """Generate chatbot script for embedding - Qdrant Cloud only"""
     try:
-        print(f"📜 Generating script for website: {website_id}")
+        print(f" Generating script for website: {website_id}")
         
         # Check if website exists in database
         website = db_manager.get_website(website_id)
@@ -3108,7 +3263,7 @@ async def generate_script(website_id: str):
         
         # Check for embeddings in Qdrant Cloud
         try:
-            from src.embedding_handler import EmbeddingHandler
+            from app.vectoredb.embedding_handler import EmbeddingHandler
             handler = EmbeddingHandler()
             
             # Try to search for a test query
@@ -3134,10 +3289,10 @@ async def generate_script(website_id: str):
                     }
                 )
             
-            print(f"✅ Verified embeddings in Qdrant Cloud for website: {website_id}")
+            print(f" Verified embeddings in Qdrant Cloud for website: {website_id}")
             
         except Exception as e:
-            print(f"❌ Error checking Qdrant: {e}")
+            print(f"  Error checking Qdrant: {e}")
             raise HTTPException(
                 status_code=500,
                 detail={
@@ -3162,7 +3317,7 @@ async def generate_script(website_id: str):
             with open(script_path, 'r', encoding='utf-8') as f:
                 script_content = f.read()
             
-            print(f"✅ Script generated successfully: {script_path}")
+            print(f" Script generated successfully: {script_path}")
             
             # Get admin email for this website
             admin_email = website.get('admin_email')
@@ -3170,7 +3325,7 @@ async def generate_script(website_id: str):
             # Send notification email if admin exists
             if admin_email:
                 try:
-                    from src.email_service import email_service
+                    from app.services.email_service import email_service
                     email_service.send_training_completion_email(
                         website_id=website_id,
                         admin_email=admin_email,
@@ -3185,7 +3340,7 @@ async def generate_script(website_id: str):
                         }
                     )
                 except Exception as email_error:
-                    print(f"⚠️ Email notification failed: {email_error}")
+                    print(f" Email notification failed: {email_error}")
             
             return {
                 "success": True,
@@ -3223,7 +3378,7 @@ async def generate_script(website_id: str):
             }
             
         except Exception as e:
-            print(f"❌ Script generation error: {e}")
+            print(f"  Script generation error: {e}")
             raise HTTPException(
                 status_code=500,
                 detail={
@@ -3237,7 +3392,7 @@ async def generate_script(website_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Generate script error: {str(e)}")
+        print(f"  Generate script error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3251,7 +3406,7 @@ async def generate_script(website_id: str):
 async def get_chatbot_script(website_id: str):
     """Serve the chatbot JavaScript file for embedding"""
     try:
-        print(f"📄 Serving script for website: {website_id}")
+        print(f" Serving script for website: {website_id}")
         
         # Check if script exists
         script_filename = f"chatbot_{website_id}.js"
@@ -3272,7 +3427,7 @@ async def get_chatbot_script(website_id: str):
             
             # Try to generate script
             try:
-                print(f"🔄 Script not found, generating for {website_id}")
+                print(f" Script not found, generating for {website_id}")
                 script_path = chatbot_generator.generate_script_file(website_id)
             except Exception as e:
                 raise HTTPException(
@@ -3298,7 +3453,7 @@ async def get_chatbot_script(website_id: str):
         async with aiofiles.open(script_path, 'r', encoding='utf-8') as f:
             content = await f.read()
         
-        print(f"✅ Script served: {script_path} ({len(content)} bytes)")
+        print(f" Script served: {script_path} ({len(content)} bytes)")
         
         return HTMLResponse(
             content=content,
@@ -3315,7 +3470,7 @@ async def get_chatbot_script(website_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Script serve error: {str(e)}")
+        print(f"  Script serve error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3439,7 +3594,7 @@ async def forgot_password(request: ForgotPasswordRequest):
         return response_data
         
     except Exception as e:
-        print(f"❌ Forgot password error: {e}")
+        print(f"  Forgot password error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3468,7 +3623,7 @@ async def verify_otp(request: VerifyOTPRequest):
         }
         
     except Exception as e:
-        print(f"❌ OTP verification error: {e}")
+        print(f"  OTP verification error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3523,7 +3678,7 @@ async def reset_password(request: ResetPasswordRequest):
         }
         
     except Exception as e:
-        print(f"❌ Reset password error: {e}")
+        print(f"  Reset password error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3563,6 +3718,41 @@ async def update_user_profile(
         )
     
     return result
+
+@app.put("/api/contact/form/{form_id}/status")
+async def update_contact_form_status(
+    form_id: int,
+    request: Dict[str, str],
+    user: dict = Depends(get_current_user)
+):
+    """Update contact form status"""
+    try:
+        new_status = request.get('status')
+        if new_status not in ['pending', 'processed', 'spam']:
+            raise HTTPException(status_code=400, detail="Invalid status")
+        
+        conn = db_manager.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "UPDATE contact_forms SET status = %s WHERE id = %s",
+            (new_status, form_id)
+        )
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "message": f"Form status updated to {new_status}",
+            "form_id": form_id,
+            "status": new_status
+        }
+        
+    except Exception as e:
+        print(f"Error updating contact form status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))    
 
 @app.put("/api/auth/change-password")
 async def change_password(
@@ -3632,7 +3822,7 @@ async def get_user_websites(user: dict = Depends(get_current_user)):
             "count": len(websites)
         }
     except Exception as e:
-        print(f"❌ Get user websites error: {e}")
+        print(f"  Get user websites error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3659,7 +3849,7 @@ async def get_user_website_ids(user: dict = Depends(get_current_user)):
             "count": len(user_data.get('website_ids', []))
         }
     except Exception as e:
-        print(f"❌ Get user website IDs error: {e}")
+        print(f"  Get user website IDs error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3681,7 +3871,7 @@ async def get_user_statistics(user: dict = Depends(get_current_user)):
             "statistics": stats
         }
     except Exception as e:
-        print(f"❌ Get user stats error: {e}")
+        print(f"  Get user stats error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -3701,7 +3891,7 @@ async def get_all_users(admin: dict = Depends(get_current_admin)):
             "count": len(users)
         }
     except Exception as e:
-        print(f"❌ Get all users error: {e}")
+        print(f"  Get all users error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/admins")
@@ -3716,37 +3906,29 @@ async def get_all_admins(admin: dict = Depends(get_current_admin)):
             "count": len(admins)
         }
     except Exception as e:
-        print(f"❌ Get all admins error: {e}")
+        print(f"  Get all admins error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/websites")
 async def get_all_websites_admin(admin: dict = Depends(get_current_admin)):
     """Get all websites with owner info (admin only)"""
     try:
-        # Use db_manager to get websites
-        websites = []
+        conn = auth_service.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
         
-        try:
-            # Try to call the method on db_manager
-            websites = db_manager.get_all_websites()
-        except AttributeError:
-            # Fallback: direct database query
-            conn = auth_service.get_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            cursor.execute('''
-                SELECT w.*, 
-                       u.email as user_email, 
-                       u.full_name as user_name
-                FROM websites w
-                LEFT JOIN users u ON w.user_id = u.id
-                ORDER BY w.created_at DESC
-            ''')
-            
-            websites = cursor.fetchall()
-            
-            cursor.close()
-            conn.close()
+        cursor.execute('''
+            SELECT w.*, 
+                   u.email as owner_email, 
+                   u.full_name as owner_name,
+                   u.id as owner_id
+            FROM websites w
+            LEFT JOIN users u ON w.user_id = u.id
+            ORDER BY w.created_at DESC
+        ''')
+        
+        websites = cursor.fetchall()
+        cursor.close()
+        conn.close()
         
         # Add stats to each website
         for website in websites:
@@ -3761,7 +3943,7 @@ async def get_all_websites_admin(admin: dict = Depends(get_current_admin)):
             "count": len(websites)
         }
     except Exception as e:
-        print(f"❌ Get all websites admin error: {e}")
+        print(f"Error getting all websites admin: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/stats")
@@ -3808,7 +3990,7 @@ async def get_admin_statistics(admin: dict = Depends(get_current_admin)):
         }
         
     except Error as e:
-        print(f"❌ Get admin stats error: {e}")
+        print(f"  Get admin stats error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/admin/create-admin")
@@ -3897,7 +4079,7 @@ async def get_token_summary(
 ):
     """Get overall token usage summary (admin only)"""
     try:
-        from src.token_counter import token_counter
+        from app.tokens.token_counter import token_counter
         summary = token_counter.get_token_summary(days)
         
         return {
@@ -3906,7 +4088,7 @@ async def get_token_summary(
         }
         
     except Exception as e:
-        print(f"❌ Get token summary error: {e}")
+        print(f"  Get token summary error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3923,7 +4105,7 @@ async def get_all_users_token_usage(
 ):
     """Get token usage for all users (admin only)"""
     try:
-        from src.token_counter import token_counter
+        from app.tokens.token_counter import token_counter
         users = token_counter.get_all_users_token_usage(days)
         
         return {
@@ -3933,7 +4115,7 @@ async def get_all_users_token_usage(
         }
         
     except Exception as e:
-        print(f"❌ Get all users token usage error: {e}")
+        print(f"  Get all users token usage error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3952,7 +4134,7 @@ async def get_user_token_usage(
 ):
     """Get token usage for a specific user (admin only)"""
     try:
-        from src.token_counter import token_counter
+        from app.tokens.token_counter import token_counter
         usage = token_counter.get_user_token_usage(user_id, days, include_websites)
         
         if 'error' in usage:
@@ -3972,7 +4154,7 @@ async def get_user_token_usage(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Get user token usage error: {e}")
+        print(f"  Get user token usage error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -3991,7 +4173,7 @@ async def get_website_token_usage(
 ):
     """Get token usage for a specific website (admin only)"""
     try:
-        from src.token_counter import token_counter
+        from app.tokens.token_counter import token_counter
         usage = token_counter.get_website_token_usage(website_id, days, include_breakdown)
         
         if 'error' in usage:
@@ -4011,7 +4193,7 @@ async def get_website_token_usage(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Get website token usage error: {e}")
+        print(f"  Get website token usage error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4028,7 +4210,7 @@ async def get_user_websites_token_details(
 ):
     """Get all websites for a user with their token details (for popup display)"""
     try:
-        from src.token_counter import token_counter
+        from app.tokens.token_counter import token_counter
         result = token_counter.get_user_websites_token_details(user_id)
         
         if not result['success']:
@@ -4043,7 +4225,7 @@ async def get_user_websites_token_details(
         return result
         
     except Exception as e:
-        print(f"❌ Get user websites token details error: {e}")
+        print(f"  Get user websites token details error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4060,7 +4242,7 @@ async def recalculate_token_aggregates(
 ):
     """Recalculate token aggregates from raw data (admin only)"""
     try:
-        from src.token_counter import token_counter
+        from app.tokens.token_counter import token_counter
         success = token_counter.recalculate_aggregates(website_id)
         
         if success:
@@ -4078,7 +4260,7 @@ async def recalculate_token_aggregates(
             )
         
     except Exception as e:
-        print(f"❌ Recalculate token aggregates error: {e}")
+        print(f"  Recalculate token aggregates error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4108,7 +4290,7 @@ async def get_subscription_plans():
         return result
         
     except Exception as e:
-        print(f"❌ Get subscription plans error: {e}")
+        print(f"  Get subscription plans error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4136,7 +4318,7 @@ async def create_payment_order(
         return result
         
     except Exception as e:
-        print(f"❌ Create payment order error: {e}")
+        print(f"  Create payment order error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4170,7 +4352,7 @@ async def verify_payment(
         return result
         
     except Exception as e:
-        print(f"❌ Verify payment error: {e}")
+        print(f"  Verify payment error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4195,7 +4377,7 @@ async def get_user_subscription(user: dict = Depends(get_current_user)):
         return result
         
     except Exception as e:
-        print(f"❌ Get user subscription error: {e}")
+        print(f"  Get user subscription error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4223,7 +4405,7 @@ async def check_user_access(
         return result
         
     except Exception as e:
-        print(f"❌ Check user access error: {e}")
+        print(f"  Check user access error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4251,7 +4433,7 @@ async def get_payment_history(
         return result
         
     except Exception as e:
-        print(f"❌ Get payment history error: {e}")
+        print(f"  Get payment history error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4279,7 +4461,7 @@ async def cancel_subscription(
         return result
         
     except Exception as e:
-        print(f"❌ Cancel subscription error: {e}")
+        print(f"  Cancel subscription error: {e}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -4289,138 +4471,105 @@ async def cancel_subscription(
             }
         )
 
-@app.post("/api/payments/create-test-subscription")
-async def create_test_subscription(
-    plan_id: int,
+@app.post("/api/payments/test-verify")
+async def test_verify_payment(
+    request: VerifyPaymentRequest,
     user: dict = Depends(get_current_user)
 ):
-    """Create a test subscription (for development)"""
-    conn = None
-    cursor = None
+    """Test endpoint for payment verification (for development)"""
     try:
-        conn = auth_service.get_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        # Create a mock payment verification for testing
+        payment_data = {
+            'razorpay_payment_id': f"pay_test_{int(datetime.now().timestamp())}",
+            'razorpay_order_id': request.razorpay_order_id,
+            'razorpay_signature': request.razorpay_signature
+        }
         
-        # Get plan details
-        cursor.execute('''
-            SELECT * FROM subscription_plans WHERE id = %s AND is_active = true
-        ''', (plan_id,))
-        plan = cursor.fetchone()
+        # If order_id starts with "order_", find and update the subscription
+        if request.razorpay_order_id.startswith('order_'):
+            try:
+                conn = auth_service.get_connection()
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                
+                # Find subscription by payment_id
+                cursor.execute('''
+                    SELECT us.* FROM user_subscriptions us
+                    WHERE us.payment_id = %s
+                ''', (request.razorpay_order_id,))
+                
+                subscription = cursor.fetchone()
+                
+                if subscription:
+                    # Update subscription
+                    cursor.execute('''
+                        UPDATE user_subscriptions 
+                        SET payment_status = 'completed',
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    ''', (subscription['id'],))
+                    
+                    # Update transaction
+                    cursor.execute('''
+                        UPDATE payment_transactions 
+                        SET status = 'completed',
+                            gateway_response = %s,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE subscription_id = %s
+                    ''', (json.dumps(payment_data), subscription['id']))
+                    
+                    conn.commit()
+                    
+                    # Get updated subscription
+                    cursor.execute('''
+                        SELECT us.*, sp.plan_name, sp.price, sp.duration_days
+                        FROM user_subscriptions us
+                        JOIN subscription_plans sp ON us.plan_id = sp.id
+                        WHERE us.id = %s
+                    ''', (subscription['id'],))
+                    
+                    updated_subscription = cursor.fetchone()
+                    
+                    cursor.close()
+                    conn.close()
+                    
+                    return {
+                        "success": True,
+                        "message": "Test payment verified successfully",
+                        "subscription": updated_subscription,
+                        "test_mode": True
+                    }
+                
+                cursor.close()
+                conn.close()
+                
+            except Error as e:
+                print(f"  Test verification error: {e}")
         
-        if not plan:
-            raise HTTPException(status_code=404, detail="Plan not found")
-        
-        # Create a test order ID
-        test_order_id = f"order_test_{int(datetime.now().timestamp())}"
-        
-        # Calculate dates
-        from datetime import timedelta, timezone
-        start_date = datetime.now(timezone.utc)
-        end_date = start_date + timedelta(days=plan['duration_days'])
-        
-        # Create subscription
-        cursor.execute('''
-            INSERT INTO user_subscriptions 
-            (user_id, plan_id, payment_id, amount_paid, currency, 
-             payment_method, payment_status, subscription_status, 
-             start_date, end_date, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            RETURNING *
-        ''', (
-            user['id'],
-            plan_id,
-            test_order_id,
-            plan['price'],
-            plan['currency'],
-            'test_mode',
-            'pending',
-            'pending',
-            start_date,
-            end_date
-        ))
-        
-        subscription = cursor.fetchone()
-        
-        conn.commit()
-        
+        # Fallback response
         return {
             "success": True,
-            "message": "Test subscription created",
-            "subscription": subscription,
-            "plan": plan,
-            "test_order_id": test_order_id,
-            "verification_endpoint": "/api/payments/test-verify",
-            "test_mode": True
+            "message": "Test payment verified (simulated)",
+            "test_mode": True,
+            "payment_data": payment_data
         }
         
     except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"❌ Create test subscription error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            auth_service.return_connection(conn) 
+        print(f"  Test verify payment error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "success": False,
+                "error": "Internal server error",
+                "message": str(e)
+            }
+        )  
 
 
 # ======================
 # DEBUG/TEST ROUTES
 # ======================
 
-@app.get("/api/test-qdrant")
-async def test_qdrant():
-    """Test Qdrant connection"""
-    try:
-        # Test Qdrant connection
-        vector_store = VectorStore()
-        collection_info = vector_store.get_collection_info()
-        
-        # Test creating a small embedding
-        test_text = "Test document for Qdrant"
-        test_embedding = vector_store.embeddings.embed_query(test_text)
-        
-        return {
-            "success": True,
-            "qdrant_status": "connected",
-            "collection_info": collection_info,
-            "embedding_test": {
-                "text": test_text,
-                "embedding_length": len(test_embedding),
-                "status": "success"
-            }
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "qdrant_status": "error",
-            "error": str(e)
-        }
 
-@app.get("/api/test-gemini")
-async def test_gemini():
-    """Test Gemini API connection"""
-    try:
-        embedding_handler = EmbeddingHandler()
-        test_text = "Hello, this is a test."
-        embedding = embedding_handler.embeddings.embed_query(test_text)
-        
-        return {
-            "success": True,
-            "gemini_status": "connected",
-            "embedding_test": {
-                "text": test_text,
-                "embedding_length": len(embedding),
-                "dimension": len(embedding)
-            }
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "gemini_status": "error",
-            "error": str(e)
-        }
 
 @app.post("/api/qdrant/create-index")
 async def create_qdrant_index():
@@ -4511,7 +4660,7 @@ async def debug_embeddings(website_id: str):
         
         # Test Qdrant connection
         try:
-            from src.embedding_handler import EmbeddingHandler
+            from app.vectoredb.embedding_handler import EmbeddingHandler
             handler = EmbeddingHandler()
             stats = handler.get_document_stats(website_id)
             qdrant_info = {
@@ -4548,7 +4697,7 @@ async def debug_embeddings(website_id: str):
         }
         
     except Exception as e:
-        print(f"❌ Debug embeddings error: {e}")
+        print(f"  Debug embeddings error: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -4591,10 +4740,10 @@ async def test_embedding_creation(website_id: str):
         with open(data_file, 'r', encoding='utf-8') as f:
             website_data = json.load(f)
         
-        print(f"📊 Loaded {len(website_data)} documents from website_data.json")
+        print(f"   Loaded {len(website_data)} documents from website_data.json")
         
         # Create embeddings
-        from src.embedding_handler import EmbeddingHandler
+        from app.vectoredb.embedding_handler import EmbeddingHandler
         handler = EmbeddingHandler()
         
         result = handler.create_embeddings(website_id, website_data)
@@ -4609,7 +4758,7 @@ async def test_embedding_creation(website_id: str):
         }
         
     except Exception as e:
-        print(f"❌ Test embedding error: {e}")
+        print(f"  Test embedding error: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -4625,7 +4774,7 @@ async def test_embedding_creation(website_id: str):
 async def debug_qdrant(website_id: str):
     """Debug endpoint to check Qdrant status for a website"""
     try:
-        from src.embedding_handler import EmbeddingHandler
+        from app.vectoredb.embedding_handler import EmbeddingHandler
         handler = EmbeddingHandler()
         
         # Check if embeddings exist
@@ -4691,7 +4840,7 @@ async def demo_chatbot(website_id: str):
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>🤖 Chatbot Demo - {website_name}</title>
+            <title> Chatbot Demo - {website_name}</title>
             <style>
                 * {{
                     margin: 0;
@@ -4892,7 +5041,7 @@ async def demo_chatbot(website_id: str):
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🤖 Chatbot Demo</h1>
+                    <h1> Chatbot Demo</h1>
                     <p>This page demonstrates the AI chatbot trained on <strong>{website_name}</strong></p>
                     <div class="badge">Website ID: {website_id}</div>
                     <div class="badge" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin-top: 5px;">
@@ -4922,7 +5071,7 @@ async def demo_chatbot(website_id: str):
                 
                 <div class="content-grid">
                     <div class="card">
-                        <h2>📋 Embed Code</h2>
+                        <h2>Embed Code</h2>
                         <p>Add this code to your website's <code>&lt;head&gt;</code> section:</p>
                         <div class="code-block">
                             &lt;script src="{BACKEND_URL}/embed/{website_id}/script.js" defer&gt;&lt;/script&gt;
@@ -4933,7 +5082,7 @@ async def demo_chatbot(website_id: str):
                     </div>
                     
                     <div class="card">
-                        <h2>🚀 Quick Start</h2>
+                        <h2> Quick Start</h2>
                         <div class="instructions">
                             <ol>
                                 <li>Copy the embed code above</li>
@@ -4946,18 +5095,18 @@ async def demo_chatbot(website_id: str):
                 </div>
                 
                 <div class="contact-info">
-                    <h3>📧 Email Notifications</h3>
+                    <h3> Email Notifications</h3>
                     <p>The following notifications will be sent to <strong>{contact_email}</strong>:</p>
                     <ul>
-                        <li>✅ User registration notifications</li>
-                        <li>✅ Contact form submissions</li>
-                        <li>✅ Chat session reports (including auto-reports when users close browser)</li>
-                        <li>✅ Training status updates</li>
+                        <li> User registration notifications</li>
+                        <li> Contact form submissions</li>
+                        <li> Chat session reports (including auto-reports when users close browser)</li>
+                        <li> Training status updates</li>
                     </ul>
                 </div>
                 
                 <div class="test-questions">
-                    <h2>💭 Try Asking:</h2>
+                    <h2> Try Asking:</h2>
                     <ul>
                         <li>"What services do you offer?"</li>
                         <li>"Tell me about your company"</li>
@@ -4968,29 +5117,29 @@ async def demo_chatbot(website_id: str):
                 </div>
                 
                 <div class="api-info">
-                    <h2>🔧 API Information</h2>
+                    <h2> API Information</h2>
                     <p><strong>Chat Endpoint:</strong> <code>POST {BACKEND_URL}/api/chat</code></p>
                     <p><strong>Contact Form:</strong> <code>POST {BACKEND_URL}/api/contact</code></p>
                     <p><strong>Script URL:</strong> <code>{BACKEND_URL}/embed/{website_id}/script.js</code></p>
                     <p><strong>Training Status:</strong> <code>GET {BACKEND_URL}/api/training-status/{website_id}</code></p>
                     <p><strong>File Upload:</strong> <code>POST {BACKEND_URL}/api/upload/{website_id}</code></p>
-                    <p><strong>Backend Running:</strong> <span style="color: green;">✓ Active</span></p>
-                    <p><strong>Database:</strong> <span style="color: green;">✓ MySQL Connected</span></p>
-                    <p><strong>Email:</strong> <span style="color: green;">✓ Enabled</span></p>
-                    <p><strong>Auto-Reports:</strong> <span style="color: green;">✓ Enabled (browser close/reload)</span></p>
+                    <p><strong>Backend Running:</strong> <span style="color: green;"> Active</span></p>
+                    <p><strong>Database:</strong> <span style="color: green;"> MySQL Connected</span></p>
+                    <p><strong>Email:</strong> <span style="color: green;"> Enabled</span></p>
+                    <p><strong>Auto-Reports:</strong> <span style="color: green;"> Enabled (browser close/reload)</span></p>
                 </div>
                 
                 <div style="text-align: center; margin-top: 40px;">
-                    <a href="{BACKEND_URL}/api/website/{website_id}" class="btn" target="_blank">📊 View Website Info</a>
-                    <a href="{BACKEND_URL}/api/website/stats/{website_id}" class="btn" target="_blank">📈 View Statistics</a>
-                    <a href="{BACKEND_URL}/api/upload/{website_id}" class="btn" target="_blank">📁 Upload Files</a>
-                    <a href="{BACKEND_URL}/api/generate-script/{website_id}" class="btn" target="_blank">📜 Get Embed Code</a>
-                    <a href="{BACKEND_URL}/api/docs" class="btn btn-secondary" target="_blank">📚 API Documentation</a>
-                    <a href="/" class="btn btn-secondary" target="_blank">🏠 Back to Home</a>
+                    <a href="{BACKEND_URL}/api/website/{website_id}" class="btn" target="_blank">   View Website Info</a>
+                    <a href="{BACKEND_URL}/api/website/stats/{website_id}" class="btn" target="_blank"> View Statistics</a>
+                    <a href="{BACKEND_URL}/api/upload/{website_id}" class="btn" target="_blank"> Upload Files</a>
+                    <a href="{BACKEND_URL}/api/generate-script/{website_id}" class="btn" target="_blank"> Get Embed Code</a>
+                    <a href="{BACKEND_URL}/api/docs" class="btn btn-secondary" target="_blank"> API Documentation</a>
+                    <a href="/" class="btn btn-secondary" target="_blank"> Back to Home</a>
                 </div>
                 
                 <div class="footer">
-                    <p>🤖 Chatbot Generator API v3.0 | Running on {BACKEND_URL}</p>
+                    <p> Chatbot Generator API v3.0 | Running on {BACKEND_URL}</p>
                     <p style="font-size: 12px; margin-top: 10px; color: #888;">
                         The chatbot should appear in the bottom-right corner of this page.
                         If it doesn't appear, check the browser console (F12) for errors.
@@ -5004,14 +5153,14 @@ async def demo_chatbot(website_id: str):
             <script>
                 // Add some interactive features
                 document.addEventListener('DOMContentLoaded', function() {{
-                    console.log('🤖 Chatbot Demo Loaded for Website ID: {website_id}');
+                    console.log(' Chatbot Demo Loaded for Website ID: {website_id}');
                     
                     // Check if chatbot loaded
                     setTimeout(function() {{
                         if (document.getElementById('chatbot-widget')) {{
-                            console.log('✅ Chatbot widget detected on page');
+                            console.log(' Chatbot widget detected on page');
                         }} else {{
-                            console.log('⚠️ Chatbot widget not detected. Check script loading.');
+                            console.log(' Chatbot widget not detected. Check script loading.');
                         }}
                     }}, 2000);
                 }});
@@ -5025,7 +5174,7 @@ async def demo_chatbot(website_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Demo page error: {str(e)}")
+        print(f"  Demo page error: {str(e)}")
         return HTMLResponse(content=f"<h1>Error loading demo page: {str(e)}</h1>", status_code=500)
 
 @app.get("/test/{website_id}")
@@ -5033,7 +5182,7 @@ async def test_chatbot_page(website_id: str):
     """Test page with embedded chatbot - Qdrant Cloud version"""
     try:
         # Get base URL from environment or use default
-        base_url = os.getenv("BASE_URL").rstrip('/')
+        base_url = os.getenv("BACKEND_URL").rstrip('/')
         
         # Check if website exists in database
         website = db_manager.get_website(website_id)
@@ -5045,7 +5194,7 @@ async def test_chatbot_page(website_id: str):
                 <html>
                 <head><title>Error</title></head>
                 <body>
-                    <h1>❌ Website Not Found</h1>
+                    <h1>  Website Not Found</h1>
                     <p>Website with ID <code>{website_id}</code> not found in database.</p>
                     <p>Please train the website first using the <code>/api/train</code> endpoint.</p>
                     <a href="/">Back to Home</a>
@@ -5061,7 +5210,7 @@ async def test_chatbot_page(website_id: str):
         embeddings_count = 0
         
         try:
-            from src.embedding_handler import EmbeddingHandler
+            from app.vectoredb.embedding_handler import EmbeddingHandler
             handler = EmbeddingHandler()
             
             # Use the dedicated method to check embeddings
@@ -5076,20 +5225,20 @@ async def test_chatbot_page(website_id: str):
                 
         except Exception as e:
             embedding_error = str(e)
-            print(f"⚠️ Qdrant check error: {e}")
+            print(f" Qdrant check error: {e}")
         
         # Determine status color and message
         if has_embeddings:
             status_color = "green"
-            status_text = "✅ Active - Ready to Chat"
+            status_text = " Active - Ready to Chat"
             status_details = f"Storage: Qdrant Cloud | Total embeddings: {embeddings_count}"
         elif embedding_error:
             status_color = "orange"
-            status_text = "⚠️ Qdrant Connection Issue"
+            status_text = " Qdrant Connection Issue"
             status_details = f"Error: {embedding_error[:100]}..."
         else:
             status_color = "orange"
-            status_text = "⚠️ No Embeddings Found"
+            status_text = " No Embeddings Found"
             status_details = "Please train the website first using the /api/train endpoint"
         
         website_name = website.get('website_name', website_id)
@@ -5102,208 +5251,15 @@ async def test_chatbot_page(website_id: str):
             <title>Test Chatbot - {website_name}</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    max-width: 800px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    line-height: 1.6;
-                    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-                    min-height: 100vh;
-                }}
-                .container {{
-                    background: white;
-                    border-radius: 20px;
-                    padding: 30px;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-                }}
-                .header {{
-                    text-align: center;
-                    margin-bottom: 30px;
-                    padding-bottom: 20px;
-                    border-bottom: 2px solid #f0f0f0;
-                }}
-                .info-card {{
-                    background: #f8f9fa;
-                    border-radius: 15px;
-                    padding: 20px;
-                    margin: 20px 0;
-                    border-left: 5px solid {status_color};
-                }}
-                .status-badge {{
-                    display: inline-block;
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                    background: {status_color};
-                    color: white;
-                    font-weight: bold;
-                    font-size: 14px;
-                    margin: 10px 0;
-                }}
-                .test-instructions {{
-                    background: #e8f4f8;
-                    border-radius: 15px;
-                    padding: 20px;
-                    margin: 20px 0;
-                }}
-                .features {{
-                    display: grid;
-                    grid-template-columns: repeat(3, 1fr);
-                    gap: 15px;
-                    margin: 30px 0;
-                }}
-                .feature {{
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 10px;
-                    text-align: center;
-                    font-size: 14px;
-                }}
-                .debug-info {{
-                    background: #1e1e1e;
-                    color: #d4d4d4;
-                    padding: 15px;
-                    border-radius: 10px;
-                    font-family: monospace;
-                    font-size: 12px;
-                    margin-top: 30px;
-                }}
-                .btn {{
-                    display: inline-block;
-                    padding: 12px 24px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 8px;
-                    margin: 10px 5px;
-                    font-weight: 600;
-                    transition: transform 0.2s;
-                }}
-                .btn:hover {{
-                    transform: translateY(-2px);
-                }}
-                .btn-secondary {{
-                    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-                }}
-                .warning {{
-                    background: #fff3cd;
-                    border: 1px solid #ffeeba;
-                    color: #856404;
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin: 20px 0;
-                }}
-            </style>
         </head>
         <body>
-            <div class="container">
-                <div class="header">
-                    <h1>🤖 Chatbot Test Page</h1>
-                    <p>Testing website: <strong>{website_name}</strong></p>
-                    <p>Website ID: <code>{website_id}</code></p>
-                    <div class="status-badge">{status_text}</div>
-                </div>
-                
-                <div class="info-card">
-                    <h3>📊 Website Information</h3>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">Name:</td>
-                            <td>{website_name}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">URL:</td>
-                            <td><a href="{website_url}" target="_blank">{website_url}</a></td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">Admin Email:</td>
-                            <td>{website.get('admin_email', 'Not set')}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">Storage:</td>
-                            <td><strong>Qdrant Cloud</strong> (No local files)</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; font-weight: 600;">Embeddings Status:</td>
-                            <td>
-                                <span style="color: {status_color}; font-weight: bold;">
-                                    {status_details}
-                                </span>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-                
-                {f'''
-                <div class="test-instructions">
-                    <h3>✅ Chatbot is Ready!</h3>
-                    <ol>
-                        <li>The chatbot widget should appear in the <strong>bottom-right corner</strong></li>
-                        <li>Click the chat icon to open the widget</li>
-                        <li><strong>Complete the registration form</strong> (required before chatting)</li>
-                        <li>Ask questions about the website content</li>
-                        <li>Try the contact form by clicking the "Contact" button in footer</li>
-                        <li>Test auto-report by closing or refreshing this page</li>
-                    </ol>
-                </div>
-                ''' if has_embeddings else f'''
-                <div class="warning">
-                    <h3>⚠️ Chatbot Not Ready</h3>
-                    <p>The website has been trained but no embeddings were found in Qdrant Cloud.</p>
-                    <p>Please check:</p>
-                    <ul>
-                        <li>Qdrant Cloud connection and API keys</li>
-                        <li>Training status using <code>/api/training-status/{website_id}</code></li>
-                        <li>If training completed successfully</li>
-                    </ul>
-                    <p><strong>Error details:</strong> {embedding_error or "No embeddings found"}</p>
-                </div>
-                '''}
-                
-                <div class="features">
-                    <div class="feature">
-                        <div style="font-size: 30px; margin-bottom: 10px;">👤</div>
-                        <strong>User Registration</strong>
-                        <p style="font-size: 12px; color: #666;">Required before chatting</p>
-                    </div>
-                    <div class="feature">
-                        <div style="font-size: 30px; margin-bottom: 10px;">💬</div>
-                        <strong>AI Chat</strong>
-                        <p style="font-size: 12px; color: #666;">Qdrant Cloud search</p>
-                    </div>
-                    <div class="feature">
-                        <div style="font-size: 30px; margin-bottom: 10px;">📧</div>
-                        <strong>Auto Reports</strong>
-                        <p style="font-size: 12px; color: #666;">Email on close/refresh</p>
-                    </div>
-                </div>
-                
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="/api/generate-script/{website_id}" class="btn" target="_blank">📜 Generate Script</a>
-                    <a href="/api/website/{website_id}" class="btn btn-secondary" target="_blank">📊 View Stats</a>
-                    <a href="/" class="btn btn-secondary">🏠 Back to Home</a>
-                </div>
-                
-                <div class="debug-info">
-                    <strong>Debug Information:</strong><br>
-                    Website ID: {website_id}<br>
-                    Website Name: {website_name}<br>
-                    Has Embeddings: {has_embeddings}<br>
-                    Embeddings Count: {embeddings_count}<br>
-                    Storage: Qdrant Cloud<br>
-                    Script URL: {base_url}/embed/{website_id}/script.js<br>
-                    Timestamp: {datetime.now().isoformat()}
-                </div>
-            </div>
-            
             <!-- Embedded Chatbot Script -->
             <script src="{base_url}/embed/{website_id}/script.js" defer></script>
             
             <script>
                 document.addEventListener('DOMContentLoaded', function() {{
                     console.log('🧪 Test page loaded for website: {website_id}');
-                    console.log('📊 Embeddings status: {"Found" if has_embeddings else "Not found"}');
+                    console.log('   Embeddings status: {"Found" if has_embeddings else "Not found"}');
                     
                     // Check if chatbot loads
                     let checkCount = 0;
@@ -5314,8 +5270,8 @@ async def test_chatbot_page(website_id: str):
                         const chatbot = document.getElementById('chatbot-widget');
                         
                         if (chatbot) {{
-                            console.log('✅ Chatbot widget loaded successfully');
-                            console.log('💾 Storage: Qdrant Cloud');
+                            console.log(' Chatbot widget loaded successfully');
+                            console.log(' Storage: Qdrant Cloud');
                             
                             // Add status indicator
                             const statusDiv = document.createElement('div');
@@ -5331,13 +5287,11 @@ async def test_chatbot_page(website_id: str):
                                 z-index: 9999;
                                 opacity: 0.8;
                             `;
-                            statusDiv.textContent = 'Qdrant Cloud';
-                            document.body.appendChild(statusDiv);
                             
                         }} else if (checkCount < maxChecks) {{
                             setTimeout(checkChatbot, 500);
                         }} else {{
-                            console.log('❌ Chatbot widget not loaded');
+                            console.log('  Chatbot widget not loaded');
                         }}
                     }}
                     
@@ -5351,7 +5305,7 @@ async def test_chatbot_page(website_id: str):
         return HTMLResponse(content=html_content)
         
     except Exception as e:
-        print(f"❌ Test page error: {e}")
+        print(f"  Test page error: {e}")
         import traceback
         traceback.print_exc()
         return HTMLResponse(
@@ -5483,10 +5437,10 @@ async def test_generated_script(website_id: str):
         </head>
         <body>
             <div class="header">
-                <h1>🤖 Test Generated Chatbot</h1>
+                <h1> Test Generated Chatbot</h1>
                 <p>Testing the embedded chatbot for <strong>{website.get('website_name', website_id)}</strong></p>
                 <div class="status status-success">
-                    ✅ Chatbot script is active and ready
+                     Chatbot script is active and ready
                 </div>
             </div>
             
@@ -5499,7 +5453,7 @@ async def test_generated_script(website_id: str):
             </div>
             
             <div class="instructions">
-                <h3>🚀 Testing Instructions:</h3>
+                <h3> Testing Instructions:</h3>
                 <ol>
                     <li>The chatbot should appear in the <strong>bottom-right corner</strong></li>
                     <li>Click the chat icon to open the widget</li>
@@ -5512,22 +5466,22 @@ async def test_generated_script(website_id: str):
             
             <div class="features">
                 <div class="feature-card">
-                    <div class="feature-icon">👤</div>
+                    <div class="feature-icon"></div>
                     <h3>User Registration</h3>
                     <p>Full registration form with name, email, and mobile</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">💬</div>
+                    <div class="feature-icon"></div>
                     <h3>AI Chat</h3>
                     <p>Context-aware responses based on website content</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">📧</div>
+                    <div class="feature-icon"></div>
                     <h3>Contact Forms</h3>
                     <p>Integrated enquiry/contact forms with auto-fill</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">📊</div>
+                    <div class="feature-icon">  </div>
                     <h3>Auto Reports</h3>
                     <p>Chat history sent to admin when user closes browser</p>
                 </div>
@@ -5535,19 +5489,19 @@ async def test_generated_script(website_id: str):
             
             <div class="test-buttons">
                 <a href="{BACKEND_URL}/embed/{website_id}/script.js" target="_blank" class="btn btn-primary">
-                    📄 View Generated Script
+                     View Generated Script
                 </a>
                 <a href="{BACKEND_URL}/api/generate-script/{website_id}" target="_blank" class="btn btn-secondary">
-                    🔧 Get Embed Code
+                     Get Embed Code
                 </a>
                 <a href="{BACKEND_URL}/api/website/{website_id}" target="_blank" class="btn btn-secondary">
-                    📊 View Website Stats
+                       View Website Stats
                 </a>
             </div>
             
             <div style="text-align: center; margin-top: 40px; color: #6B7280; font-size: 14px;">
                 <p>The chatbot widget should be visible in the bottom-right corner of this page.</p>
-                <p>If not visible, check browser console for errors (F12 → Console)</p>
+                <p>If not visible, check browser console for errors (F12  Console)</p>
             </div>
             
             <!-- This is the generated chatbot script -->
@@ -5560,9 +5514,9 @@ async def test_generated_script(website_id: str):
                     // Check if chatbot loads properly
                     setTimeout(() => {{
                         if (document.getElementById('chatbot-widget')) {{
-                            console.log('✅ Chatbot widget loaded successfully');
+                            console.log(' Chatbot widget loaded successfully');
                         }} else {{
-                            console.log('❌ Chatbot widget not found');
+                            console.log('  Chatbot widget not found');
                         }}
                     }}, 2000);
                     
@@ -5572,10 +5526,10 @@ async def test_generated_script(website_id: str):
                         <div style="margin-top: 30px; padding: 15px; background: #FEF3C7; border-radius: 10px; border: 1px solid #F59E0B;">
                             <h4 style="margin-top: 0; color: #92400E;">Test Cases:</h4>
                             <ul style="margin-bottom: 0;">
-                                <li>✅ Registration form should be first thing shown</li>
-                                <li>✅ After registration, chat input should appear</li>
-                                <li>✅ Contact button should show in footer</li>
-                                <li>✅ Enquiry button should appear for pricing/contact questions</li>
+                                <li> Registration form should be first thing shown</li>
+                                <li> After registration, chat input should appear</li>
+                                <li> Contact button should show in footer</li>
+                                <li> Enquiry button should appear for pricing/contact questions</li>
                             </ul>
                         </div>
                     `;
@@ -5589,7 +5543,7 @@ async def test_generated_script(website_id: str):
         return HTMLResponse(content=html_content)
         
     except Exception as e:
-        print(f"❌ Test script page error: {e}")
+        print(f"  Test script page error: {e}")
         return HTMLResponse(content=f"<h1>Error: {str(e)}</h1>", status_code=500)
 
 
@@ -5611,7 +5565,7 @@ async def http_exception_handler(request, exc):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
-    print(f"❌ Unhandled error: {exc}")
+    print(f"  Unhandled error: {exc}")
     import traceback
     traceback.print_exc()
     
@@ -5630,18 +5584,18 @@ if __name__ == "__main__":
     import uvicorn
     
     print("=" * 70)
-    print("🤖 CHATBOT GENERATOR API v3.0")
+    print(" CHATBOT GENERATOR API v3.0")
     print("=" * 70)
-    print(f"🌐 Local URL: {BACKEND_URL}")
-    print(f"📚 API Docs: {BACKEND_URL}/api/docs")
-    print(f"🏠 Home Page: {BACKEND_URL}/")
-    print(f"🗄️  Database: MySQL")
-    print(f"📧 Email: Enabled")
-    print(f"🔄 Auto-Reports: Enabled (browser close/reload)")
-    print(f"📁 Data: {os.path.abspath('data')}")
-    print(f"📁 Scripts: {os.path.abspath('generated_scripts')}")
+    print(f" Local URL: {BACKEND_URL}")
+    print(f" API Docs: {BACKEND_URL}/api/docs")
+    print(f" Home Page: {BACKEND_URL}/")
+    print(f"  Database: MySQL")
+    print(f" Email: Enabled")
+    print(f" Auto-Reports: Enabled (browser close/reload)")
+    print(f" Data: {os.path.abspath('data')}")
+    print(f" Scripts: {os.path.abspath('generated_scripts')}")
     print("=" * 70)
-    print("🚀 Starting server...")
+    print(" Starting server...")
     print("=" * 70)
     
     # Create necessary directories
@@ -5653,7 +5607,7 @@ if __name__ == "__main__":
     # Check database connection and get stats
     try:
         websites = db_manager.get_all_websites()
-        print(f"📊 Found {len(websites)} websites in database")
+        print(f"   Found {len(websites)} websites in database")
         
         total_messages = 0
         total_conversations = 0
@@ -5675,13 +5629,13 @@ if __name__ == "__main__":
                         uploads = json.load(f)
                         total_uploads += len(uploads)
         
-        print(f"📝 Total chat messages: {total_messages}")
-        print(f"💬 Total conversations: {total_conversations}")
-        print(f"📋 Total contact forms: {total_forms}")
-        print(f"📁 Total uploaded files: {total_uploads}")
+        print(f"Total chat messages: {total_messages}")
+        print(f" Total conversations: {total_conversations}")
+        print(f"Total contact forms: {total_forms}")
+        print(f" Total uploaded files: {total_uploads}")
         
     except Exception as e:
-        print(f"⚠️ Database check error: {e}")
+        print(f" Database check error: {e}")
     
     uvicorn.run(
         app,

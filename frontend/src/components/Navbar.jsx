@@ -10,7 +10,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick }) => {
+const Navbar = ({ user, onLogout, onLoginClick, onSignupClick }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -203,35 +203,27 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
           </div>
           
           <div className="py-1">
-            <a
-              href="/dashboard"
+            <Link
+              to="/dashboard"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <FaHome className="mr-3 text-gray-400" />
               Dashboard
-            </a>
+            </Link>
             
-            <a
-              href="/profile"
+            <Link
+              to="/profile"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <FaUser className="mr-3 text-gray-400" />
               My Profile
-            </a>
-            
-            <a
-              href="/settings"
-              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            >
-              <FaCog className="mr-3 text-gray-400" />
-              Settings
-            </a>
+            </Link>
           </div>
           
           <div className="border-t border-gray-100 py-1">
             <button
               onClick={handleLogout}
-              className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+              className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
             >
               <FaSignOutAlt className="mr-3" />
               Sign Out
@@ -260,7 +252,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
                 <FaRobot className="text-white text-2xl" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">🤖 Botrion</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Botrion</h1>
                 {/* <p className="text-sm text-gray-600 hidden sm:block">Create AI chatbots for any website</p> */}
               </div>
             </div>
@@ -298,7 +290,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
                 >
                   <button
                     onClick={handleUserMenuClick}
-                    className="flex items-center space-x-3 p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                    className="cursor-pointer flex items-center space-x-3 p-2 rounded-xl hover:bg-gray-100 transition-colors"
                   >
                     <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
                       {user?.full_name?.charAt(0).toUpperCase()}
@@ -315,13 +307,13 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
               <>
                 <button
                   onClick={onLoginClick}
-                  className="px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors font-medium"
+                  className="px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors font-medium cursor-pointer"
                 >
                   Sign In
                 </button>
                 <button
                   onClick={onSignupClick}
-                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-lg"
+                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-lg cursor-pointer"
                 >
                   Sign Up
                 </button>
@@ -355,28 +347,21 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
             <div className="px-2 pt-2 pb-3 space-y-1">
               {user ? (
                 <>
-                  <a
-                    href="/dashboard"
+                  <Link
+                    to="/dashboard"
                     className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   >
                     Dashboard
-                  </a>
-                  <a
-                    href="/profile"
+                  </Link>
+                  <Link
+                    to="/profile"
                     className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   >
                     Profile
-                  </a>
-                  
-                  <a
-                    href="/settings"
-                    className="block px-3 py-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                  >
-                    Settings
-                  </a>
+                  </Link>
                   <button
                     onClick={handleLogout}
-                    className="block w-full text-left px-3 py-2 rounded-md text-red-600 hover:text-red-800 hover:bg-red-50"
+                    className="block w-full text-left px-3 py-2 rounded-md text-red-600 hover:text-red-800 hover:bg-red-50 cursor-pointer"
                   >
                     Sign Out
                   </button>
@@ -394,12 +379,6 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
                     className="block w-full text-left px-3 py-2 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700"
                   >
                     Sign Up
-                  </button>
-                  <button
-                    onClick={onAdminLoginClick}
-                    className="block w-full text-left px-3 py-2 rounded-md text-purple-700 hover:text-purple-900 hover:bg-purple-50"
-                  >
-                    Admin Login
                   </button>
                 </>
               )}
@@ -420,7 +399,7 @@ const Navbar = ({ user, onLogout, onLoginClick, onSignupClick, onAdminLoginClick
           </div>
           <button
             onClick={handleLogout}
-            className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+            className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 cursor-pointer"
           >
             Sign Out
           </button>

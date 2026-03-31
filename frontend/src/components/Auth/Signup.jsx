@@ -28,10 +28,24 @@ const Signup = ({ onSignup, onSwitchToLogin, onClose }) => {
     }
     
     if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
-    }
+        newErrors.email = 'Email is required';
+      } 
+      else {
+        const email = formData.email.toLowerCase();
+
+        const validDomains = [
+          "gmail.com",
+          "outlook.com",
+          "hotmail.com",
+          "yahoo.com"
+        ];
+
+        const domain = email.split("@")[1];
+
+        if (!domain || !validDomains.includes(domain)) {
+          newErrors.email = "Only Gmail, Outlook, Hotmail, or Yahoo emails are allowed";
+        }
+      }
     
     if (formData.mobile && !/^[0-9+\-\s()]*$/.test(formData.mobile)) {
       newErrors.mobile = 'Mobile number is invalid';
@@ -178,7 +192,7 @@ const Signup = ({ onSignup, onSwitchToLogin, onClose }) => {
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl p-2 rounded-full hover:bg-gray-100 transition-colors z-10"
+              className="cursor-pointer absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl p-2 rounded-full hover:bg-gray-100 transition-colors z-10"
             >
               &times;
             </button>
@@ -302,7 +316,7 @@ const Signup = ({ onSignup, onSwitchToLogin, onClose }) => {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                     >
                       {showPassword ? <FaEyeSlash /> : <FaEye />}
                     </button>
@@ -360,7 +374,7 @@ const Signup = ({ onSignup, onSwitchToLogin, onClose }) => {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                     >
                       {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
                     </button>
@@ -376,32 +390,13 @@ const Signup = ({ onSignup, onSwitchToLogin, onClose }) => {
                     <p className="text-sm text-red-600">{errors.general}</p>
                   </div>
                 )}
-                
-                {/* Terms Checkbox */}
-                {/* <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="terms"
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    required
-                  />
-                  <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
-                    I agree to the{' '}
-                    <a href="#" className="text-blue-600 hover:text-blue-800">
-                      Terms of Service
-                    </a>{' '}
-                    and{' '}
-                    <a href="#" className="text-blue-600 hover:text-blue-800">
-                      Privacy Policy
-                    </a>
-                  </label>
-                </div> */}
+
                 
                 {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg"
+                  className="cursor-pointer w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg"
                 >
                   {isLoading ? (
                     <>
@@ -423,7 +418,7 @@ const Signup = ({ onSignup, onSwitchToLogin, onClose }) => {
                     <button
                       type="button"
                       onClick={onSwitchToLogin}
-                      className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                      className="text-blue-600 hover:text-blue-800 font-medium transition-colors cursor-pointer"
                     >
                       Sign in here
                     </button>

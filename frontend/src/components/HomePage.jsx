@@ -142,13 +142,13 @@ const HomePage = ({ onLoginClick, onSignupClick, user, subscriptionStatus }) => 
         <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
           <button
             onClick={handleSignupClick}
-            className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-gray-50 shadow-xl transform hover:-translate-y-1 transition-all duration-300 hover:shadow-2xl"
+            className="cursor-pointer px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-gray-50 shadow-xl transform hover:-translate-y-1 transition-all duration-300 hover:shadow-2xl"
           >
             Get Started Free
           </button>
           <button
             onClick={handleLoginClick}
-            className="px-8 py-4 border-2 border-white text-white font-bold rounded-xl hover:bg-white/10 transition-all duration-300"
+            className="cursor-pointer px-8 py-4 border-2 border-white text-white font-bold rounded-xl hover:bg-white/10 transition-all duration-300"
           >
             Sign In
           </button>
@@ -518,15 +518,9 @@ const HomePage = ({ onLoginClick, onSignupClick, user, subscriptionStatus }) => 
               <>
                 <button
                   onClick={handleSignupClick}
-                  className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-gray-100 transition-all duration-200 transform hover:scale-105 shadow-2xl"
+                  className="cursor-pointer px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-gray-100 transition-all duration-200 transform hover:scale-105 shadow-2xl"
                 >
                   Start Free Trial
-                </button>
-                <button
-                  onClick={handleLoginClick}
-                  className="px-8 py-4 bg-transparent border-2 border-white text-white font-bold rounded-xl hover:bg-white/10 transition-all duration-200"
-                >
-                  Schedule Demo
                 </button>
               </>
             )}

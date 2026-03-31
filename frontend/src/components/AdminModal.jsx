@@ -90,7 +90,7 @@ const AddAdminModal = React.memo(({
               </div>
               <button
                 onClick={handleClose}
-                className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="cursor-pointer text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isCreatingAdmin}
                 type="button"
                 aria-label="Close modal"
@@ -193,7 +193,7 @@ const AddAdminModal = React.memo(({
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="flex-1 py-2.5 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="cursor-pointer flex-1 py-2.5 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isCreatingAdmin}
                 >
                   Cancel
@@ -201,7 +201,7 @@ const AddAdminModal = React.memo(({
                 <button
                   type="submit"
                   disabled={isCreatingAdmin}
-                  className="flex-1 py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="cursor-pointer flex-1 py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreatingAdmin ? (
                     <>

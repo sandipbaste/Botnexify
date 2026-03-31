@@ -9,6 +9,8 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
+import { Link } from 'react-router-dom';
+
 
 const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
   const modalRef = useRef(null);
@@ -81,7 +83,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
       doc.setTextColor(51, 51, 51);
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text('👤 User Information', 14, yPos);
+      doc.text(' User Information', 14, yPos);
       yPos += 10;
       
       // User Info Table
@@ -111,7 +113,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
       if (user.stats) {
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        doc.text('📊 User Statistics', 14, yPos);
+        doc.text(' User Statistics', 14, yPos);
         yPos += 10;
         
         const statsData = [
@@ -138,7 +140,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
       if (user.websites && user.websites.length > 0) {
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        doc.text(`🌐 All Websites (${user.websites.length})`, 14, yPos);
+        doc.text(` All Websites (${user.websites.length})`, 14, yPos);
         yPos += 10;
         
         user.websites.forEach((website, index) => {
@@ -431,7 +433,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
                   <button
                     onClick={() => setShowExportDropdown(!showExportDropdown)}
                     disabled={isExporting || !user}
-                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className=" cursor-pointer px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     type="button"
                   >
                     {isExporting ? (
@@ -457,7 +459,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
                         
                         <button
                           onClick={handleDownloadExcel}
-                          className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3 transition-colors border-t border-gray-100"
+                          className="cursor-pointer w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3 transition-colors border-t border-gray-100"
                           type="button"
                         >
                           <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
@@ -474,7 +476,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
                         
                         <button
                           onClick={handleGeneratePDF}
-                          className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                          className="cursor-pointer w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-3 transition-colors"
                           type="button"
                         >
                           <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
@@ -493,7 +495,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
                 
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  className="cursor-pointer text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
                   type="button"
                   aria-label="Close modal"
                 >
@@ -654,14 +656,14 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
                                   Website URL
                                 </label>
                                 {website.website_url ? (
-                                  <a 
-                                    href={website.website_url} 
+                                  <Link 
+                                    to={website.website_url} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
                                     className="text-sm text-blue-600 hover:text-blue-800 hover:underline mt-1 block break-all"
                                   >
                                     {website.website_url}
-                                  </a>
+                                  </Link>
                                 ) : (
                                   <p className="text-sm text-gray-500 mt-1">N/A</p>
                                 )}
@@ -694,7 +696,7 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
                                   </label>
                                   <button
                                     onClick={() => handleCopyScript(website.website_id, website.script_tag)}
-                                    className={`px-3 py-1.5 ${
+                                    className={`cursor-pointer px-3 py-1.5 ${
                                       copiedStates[website.website_id] ? 'bg-green-600' : 'bg-gray-800 hover:bg-gray-700'
                                     } text-white text-xs rounded-lg transition-colors flex items-center space-x-1`}
                                     type="button"
@@ -718,8 +720,8 @@ const UserDetailsModal = ({ isOpen, onClose, user, isLoading }) => {
                                   </pre>
                                 </div>
                                 <div className="mt-2 text-xs text-gray-400 flex items-center">
-                                  <span className="mr-2">📦</span>
-                                  Add to &lt;head&gt; section to embed chatbot
+                                  <span className="mr-2"></span>
+                                  Add this script into index.html file
                                 </div>
                               </div>
                             ) : (
